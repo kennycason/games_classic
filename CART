@@ -1,0 +1,42 @@
+	subttl	'Cartoon setup routines'
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;							;;
+;;			Cartoon setup			;;
+;;							;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; ICART0 - initialize Introduction cartoon
+;
+icart0	rts
+
+
+;
+; VCART0 - VBL driver for Introduction cartoon
+;
+vcart0	rts
+
+
+;
+; ICART1 - initialize Broken-heart cartoon
+;
+icart1	rts
+
+ 
+;
+; VCART1 - VBL driver for Broken-heart cartoon
+;
+vcart1	rts
+
+
+;
+; ICART2 - initialize Ziggurat cartoon
+;
+icart2	rts
+
+
+;
+; VCART2 - VBL driver for Ziggurat cartoon
+;
+vcart2	rts

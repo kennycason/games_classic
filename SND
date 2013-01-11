@@ -1,0 +1,426 @@
+	subttl	'sound drivers'
+******************************
+* sfx driver for donkey kong *
+*           02/03/83         *
+*			     *
+*			     *
+*   			     *
+* notes:		     *
+* TABLE DRIVEN SINGLE VOICE  *
+*        VERSION             *
+*			     *
+*			     *
+******************************
+*         priorities         *
+*                            *
+*   increasing order of      *
+*        priority	     *
+*                            *
+*	ch1		     *
+*			     *
+*       walk                 *
+*      	jump                 *
+*      	srivet                *
+*      	rotate               *
+*                            *
+*                            *
+*       ch2                  *
+*                            *
+*    	march2               *
+*       march1               *
+*       attack               *
+*       warning (not implemented)
+*       hammer (in ch 2,3,4) *
+*                            *
+*       ch3                  *
+*	                     *
+*	stamp                *
+*	fall                 *
+*	grin                 *
+*	girl1 (in ch 3,4)    *
+*	                     *
+*	ch4                  *
+*                            *
+*	spring               *
+*	points               *
+*                            *
+*	music in ch 1 & 2    *
+*                            *
+*	howmuch              *
+*	intro                *
+*                            *
+*                            *
+******************************
+	eject
+;
+; USND - main sound driver
+; Passed: nothing
+; Returns: nothing
+; Uses: sound temps, AXY
+;
+usnd	local
+	lda	#0			; done every vbl
+	sta	cnt1s
+	sta	cnt2s
+	sta	cnt3s
+	sta	cnt4s
+	ldx	#mstnum		;init sound state flag ctr
+	stx	mstctr
+:lp				;sound loop
+
+	ldx	mstctr
+	lda	mstate,x
+	beq	:off
+	jsr	dosound
+:off
+	dec	mstctr
+	bpl	:lp
+
+;
+; load all audio registers
+;
+load    ldx	#7
+:lp1	lda	frq1s,x
+	sta	audf1,x
+	dex	
+	bpl	:lp1
+	rts				; all done...
+	local
+
+;
+; indirect jsr a sound routine...
+;
+dosound
+	clc
+	lda	#low intro
+	adc	sjtab,x
+	sta	stmp
+	lda	#high intro
+	adc	#0
+	sta	stmp+1
+	jmp	(stmp)		;do indirect jmp
+
+
+
+*****************************
+* music routine:            *
+* intro                     *
+*                           *****************
+*intrx1 = duration index of ch1 current note*
+*intrx2 = duration index of ch2 current note*
+*music1 = index into ch1 tables             *
+*music2 = index into ch2 tables             *
+*********************************************
+;
+;ape walks up ladder with girl
+; activated by: intfg = #intle1, music2 = #intle2
+; assumes totdrs =< 0 on entry, will exit w/ totdrs<0
+;
+intro
+        lda	#intc1		;audio control
+	sta	cnt1s
+	sta	cnt2s
+	dec	totdrs		;check duration
+	bpl	:1$     	;done?
+	dec	intfg		 ;yes. get next note
+	beq	:done           ;done with tune?
+	ldx	intfg		;no, play next note
+	lda	intl1-1,x	;get duration
+	sta	totdrs
+	lda	intf1-1,x	;get note
+	sta	frq1s
+:1$
+	dec	totdrs+2
+	bpl	:done
+	dec	music2
+	ldx	music2
+	lda	intl2-1,x
+	sta 	totdrs+2
+	lda	intf2-1,x
+	sta	frq2s
+:done
+	rts
+
+;
+; activated by:  howfg = globix(1,2) = #howlen
+;
+howmuch	local
+	ldx	#ch1off		;chan 1 offset
+	           	 	;lo of current freq table
+	ldy	#low howa1
+	lda	#high howa1	;args for call to muspr
+	jsr	muspr
+
+	ldx	#ch2off		;chan 2 offset
+	           	 	;lo of current freq table
+	ldy	#low howa2
+	lda	#high howa2
+	jsr	muspr
+				;update top-level status
+	sta	howfg           ; w/ channel 2's flag
+	rts
+	
+;****
+; activate by setting: rivfg = globix = globix + 2 = #rivlen
+;
+srivet	local			;man removes last srivet
+	ldx	#ch1off		;chan 1 offset
+	           	 	;lo of current freq table
+	ldy	#low riva1
+	           	 	;hi of current freq table
+	lda	#high riva1
+	jsr	muspr
+
+	ldx	#ch2off		;chan 2 offset
+	           	 	;lo of current freq table
+	ldy	#low riva2
+	           	 	;hi of current freq table
+	lda	#high riva2
+	jsr	muspr
+				;update sound state var
+	sta	rivfg
+	rts
+
+
+******************
+* GENERALIZE     *
+* SINGLE VOICE   *
+*     DRIVER     *
+******************
+
+voice
+	dec	mstate,x	;countdown state flag
+	lda	fl,x		;freq, control adr into Zvars
+	sta	frq
+	lda	fh,x
+	sta	frq+1
+	lda	cnl,x
+	sta	cnt
+	lda	cnh,x
+	sta	cnt+1
+	ldy	mstate,x	;bias into freq, control table
+	lda	chnum,x		;channel #
+	tax
+	lda	(frq),y		;fetch table values
+	sta	frq1s,x		;put in the correct channel shadow reg
+	lda	(cnt),y
+	sta	cnt1s,x
+	ldx	mstctr		;recover X as state flag ctr
+	rts
+
+
+******************
+* 	ch1      *
+*  	walk     *
+*	jump     *
+*	srivet    *
+*	rotate   *
+******************
+
+;****
+; activate by setting wlkfg = #wlklen
+
+;walk		        	;man walking
+
+;****
+; activate by setting jmpfg = #jmplen
+
+;jump			   	;man jumps
+
+;****
+; activated by: rotfg = rotlen
+
+;rotate				;man rotates after being hit
+
+******************
+*	ch2      *
+*    	march2   *
+*	march1	 *
+*	attack   *
+*	warning ?*
+*hammer relocated*
+******************
+
+
+;****
+; activated by: mr2fg = mr2len
+
+;march2			;background music
+
+;****
+; activated by: mr1fg = mr1len
+
+;march1				;background music
+
+;****
+; activated by: atkfg = atklen
+
+
+;attack				;theme while man holds hammer
+
+
+*****************
+*	ch3	*
+*	stamp   *
+*	fall	*
+*	grin	*
+*	girl1	*
+*****************
+
+;****
+; activated by: stpfg = stplen
+
+;stamp				;ape stamps foot &
+				;  ape falls
+
+;****
+; activated by: falfg <> 0 & vtime=0 & falf3=falfv & falc3=falcv
+; uses: vtime - mutual exclusive w/ hammer
+
+fall	local			;springy things falling and
+				;man falling and ape falling
+	lda	falf3
+	sta	frq3s
+	lda	falc3
+	sta	cnt3s
+	inc	vtime  		;volume increment? (every 16 vblank)
+	lda	vtime
+	and	#7		;ck lower 3 bits
+	bne	:1$
+	inc	falc3
+:1$
+	inc	falf3
+	sec
+	lda	falf3
+	sbc	#102
+	bne	:ret		;not finished yet-->
+	sta	falfg		;0 state flag
+:ret
+	rts
+
+;****
+; activated by: grnfg = grnlen
+
+;grin				;ape grimacing and
+				;sfx at broken heart
+
+girl1	local				;boy gets girl
+	ldx	#ch3off		;chan 3 offset
+	ldy	#low grla3	;ptr table adr as arg
+	lda	#high grla3
+	jsr	muspr
+
+
+	ldx	#ch4off		;chan 4 offset
+	           	 	;lo of current freq table
+	ldy	#low grla4
+	lda	#high grla4
+	jsr	muspr
+	sta	grlfg		;update flag
+	rts
+
+
+*****************
+*	ch4	*
+*	spring	*
+*	points	*
+*****************
+
+
+;****
+
+; activated by: sprfg = srplen
+
+;spring				;springy things bouncing
+
+;points  			;points scored
+
+
+;****
+; activated by: hamfg <> 0, hamix+2 = -1, hamix+4 = -12, hamix+6 = -17
+
+
+;hammer strikes killable object
+hammer	local
+	ldx	#ch2off		;channel one offset
+:chpr
+    	inc	hamix,x
+	bmi	:nxch		;still neg, channel not started yet-->
+	ldy	hamix,x
+	cpy	#hamlen
+	bcs	:endch		;this channel is OFF-->
+	lda	hamf,y
+	sta	frq1s,x
+	lda	hamc,y
+	sta	cnt1s,x
+:nxch
+	inx			;bump to next channel bias
+	inx
+	cpx	#8		;finished w/ channel 4?
+	bcc	:chpr		;not yet-->
+	rts
+:endch
+	txa			;channel offset
+	sbc	#6		;CARRY already SET to get here
+	sta	hamfg		;=0 if channel 4
+	jmp	:nxch
+
+
+**********************
+* music routine with *
+*  simple envelope   *
+**********************
+
+******************************************************************
+* this is re-entrant to a point. only a few routines can use this*
+* subroutine. since a finite number of shadows are used; only    *
+* four voices can be utiilized and all four voices have to be    *
+* sounded to completion so the shadows will be re-initialized    *
+* it's best to use this as a subroutine only if you know that    *
+* no other sound routines will use it.                           *
+******************************************************************
+muspr   proc
+	dec	totdrs,x	;get next note?
+	bpl	:comp		;(make sure totdrs=<0 at end of tune)
+
+	sty	stmp		;get ptr to adr table into Z vars
+	sta	stmp+1
+	ldy	#7
+:adrlp				;load addresses
+	lda	(stmp),y
+	sta	frq,y
+	dey
+	bpl	:adrlp
+
+	dec	globix,x	;global index into sound table
+	bmi	:chdon		;DONE w/ this channel, QUIT-->
+
+	ldy	globix,x
+	lda	(frq),y		;get next freq in sound table
+	sta	musfs,x 	;freq shadow
+	lda	(cnt),y		;control byte from sound table
+	sta	muscs,x		;control shadow
+	lda	(length),y	;length byte from sound table
+	sta	totdrs,x	;total duration shadow
+	lda	(sustain),y
+	sta	suslns,x	;sustain length shadow
+
+:comp
+	dec	suslns,x	;done with sustain?
+	bpl	:load		;no-->
+ 				;decrement volume
+:vol	lda	muscs,x
+	and	#$0f 		;get right side
+	beq	:load  		;don't decrement no-volume
+	dec	muscs,x
+
+:load	lda	musfs,x		;load audio registers
+	sta	frq1s,x
+	lda	muscs,x
+	sta	cnt1s,x
+	lda	#1
+	rts
+
+:chdon
+	lda	#0
+	rts

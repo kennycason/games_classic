@@ -1,0 +1,2142 @@
+                  ATARI CAMAC Assembler Ver  1.0A  Page   1
+                                                       D1:CSOUNDS.        
+  sound drivers                                     
+
+                            list    i
+  0000              ******************************
+                    * sfx driver for donkey kong *
+                    *           02/03/83         *
+                    *                            *
+                    *                            *
+                    *                            *
+                    * notes:                     *
+                    * TABLE DRIVEN SINGLE VOICE  *
+                    *        VERSION             *
+                    *                            *
+                    *                            *
+                    ******************************
+                    *         priorities         *
+                    *                            *
+                    *   increasing order of      *
+                    *        priority            *
+                    *                            *
+                    *       ch1                  *
+                    *                            *
+                    *       walk                 *
+                    *       jump                 *
+                    *       rivet                *
+                    *       rotate               *
+                    *                            *
+                    *                            *
+                    *       ch2                  *
+                    *                            *
+                    *       march2               *
+                    *       march1               *
+                    *       attack               *
+                    *       warning (not implemented)
+                    *       hammer (in ch 2,3,4) *
+                    *                            *
+                    *       ch3                  *
+                    *                            *
+                    *       stamp                *
+                    *       fall                 *
+                    *       grin                 *
+                    *       girl1 (in ch 3,4)    *
+                    *                            *
+                    *       ch4                  *
+                    *                            *
+                    *       spring               *
+                    *       points               *
+                    *                            *
+                    *       music in ch 1 & 2    *
+                    *                            *
+                    *       howmuch              *
+                    *       intro                *
+                    *                            *
+                    *                            *
+                    ******************************
+                  ATARI CAMAC Assembler Ver  1.0A  Page   2
+                                                       D1:CSOUNDS.        
+  sound drivers                                     
+
+                    
+                    
+                    ******************************
+                    * system vblank equate       *
+                    ******************************
+                    
+        = 02FC      ch      =       $2fc
+        = E45C      setvbv  =       $e45c
+        = E462      xitvbv  =       $e462
+                    
+                    ; equates
+                    ;
+                            include d:sndequ
+                    *****************
+                    * SOUND EQUATES *
+                    *****************
+                    
+        = D200      AUDF1   EQU     $D200
+        = D201      AUDC1   EQU     $D201
+        = D202      AUDF2   EQU     $D202
+        = D203      AUDC2   EQU     $D203
+        = D204      AUDF3   EQU     $D204
+        = D205      AUDC3   EQU     $D205
+        = D206      AUDF4   EQU     $D206
+        = D207      AUDC4   EQU     $D207
+        = D208      AUDCTL  EQU     $D208
+        = D20F      SKCTL   EQU     $D20F
+        = 0232      SSKCTL  EQU     $232
+  0000  = 00B0              org     $b0
+  00B0  = 0002      frq     ds      2               ;contains addr of current m:
+                                                    ;freq table
+  00B2  = 0002      cnt     ds      2               ;contains addr of current m:
+                                                    ;control table
+  00B4  = 0002      length  ds      2               ;contains addr of table for:
+                                                    ;of current note
+  00B6  = 0002      sustain ds      2               ;contains addr of table for:
+                                                    ;of current note
+  00B8  = 0002      stmp    ds      2               ;temp ptr for sound routine:
+                    
+  00BA  = 0001      tmp     ds      1
+  00BB  = 0001      tmph    ds      1
+  00BC  = 0001      tmp1    ds      1
+  00BD  = 0001      tmp1h   ds      1
+  00BE  = 0001      tmp2    ds      1
+  00BF  = 0001      tmp2h   ds      1
+  00C0  = 0001      hei     ds      1
+  00C1  = 0001      yi      ds      1
+                    
+                    
+                    ;****
+                    ; sound flags
+                    ; zero ==> not running
+                    ; one  ==> running
+                    ;
+        = 06C0      mstate  =       $6c0
+                                                    ;flag values for checking s:
+        = 06C0      pntfg   =       mstate
+                  ATARI CAMAC Assembler Ver  1.0A  Page   3
+                                                       D1:CSOUNDS.        
+  sound drivers                                     
+
+        = 06C1      sprfg   =       mstate + 1
+        = 06C2      grlfg   =       mstate + 2
+        = 06C3      grnfg   =       mstate + 3
+        = 06C4      falfg   =       mstate + 4
+        = 06C5      stpfg   =       mstate + 5
+        = 06C6      hamfg   =       mstate + 6
+        = 06C7      atkfg   =       mstate + 7
+        = 06C8      mr1fg   =       mstate + 8
+        = 06C9      mr2fg   =       mstate + 9
+        = 06CA      rotfg   =       mstate + 10
+        = 06CB      rivfg   =       mstate + 11
+        = 06CC      jmpfg   =       mstate + 12
+        = 06CD      wlkfg   =       mstate + 13
+        = 06CE      howfg   =       mstate + 14
+        = 06CF      intfg   =       mstate + 15
+        = 000F      mstnum  =       intfg-pntfg
+                    
+        = 06F0      frq1s   equ     $6f0            ;8 continuous audio shadow :
+        = 06F1      cnt1s   equ     $6f1            ;can be placed any where in
+        = 06F2      frq2s   equ     $6f2            ;ram
+        = 06F3      cnt2s   equ     $6f3
+        = 06F4      frq3s   equ     $6f4
+        = 06F5      cnt3s   equ     $6f5
+        = 06F6      frq4s   equ     $6f6
+        = 06F7      cnt4s   equ     $6f7
+        = 4000      pokint  equ     $4000           ;initialize pokey org addre:
+        = 5000      sbuf    equ     $5000
+                  ATARI CAMAC Assembler Ver  1.0A  Page   4
+                                                       D1:CSOUNDS.        
+  sound drivers                                     
+
+                    
+                            include d:macs
+                  ATARI CAMAC Assembler Ver  1.0A  Page   5
+                                                       D1:MACS.           
+  MACROs                                            
+
+  00C2              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                    ;;                                                      ;;
+                    ;;                      MACROs                          ;;
+                    ;;                                                      ;;
+                    ;;           Sundry time savers and cute hacks          ;;
+                    ;;                                                      ;;
+                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                    
+                    
+                    ;
+                    ; double-load immediate
+                    dldi    MACRO   dest,imm
+                    %L      LDA     #LOW %2
+                            STA     %1
+                            LDA     #HIGH %2
+                            STA     %1+1
+                            ENDM
+                    
+                    ;
+                    ; single-load immediate
+                    ldi     MACRO   dest,imm
+                    %L      LDA     #%2
+                            STA     %1
+                            ENDM
+                    
+                    ;
+                    ; single-load immediate indexed off of X
+                    ldix    MACRO   destbase,imm
+                    %L      LDA     #%2
+                            STA     %1,X
+                            ENDM
+                    
+                    ;
+                    ; single-load immediate indexed off of Y
+                    ldiy    MACRO   destbase,imm
+                    %L      LDA     #%2
+                            STA     %1,Y
+                            ENDM
+                    
+                    ;
+                    ; double move
+                    dmv     MACRO   dest,source
+                    %L      LDA     %2
+                            STA     %1
+                            LDA     %2+1
+                            STA     %1+1
+                    
+                            ENDM
+                    
+                    ;
+                    ; single move
+                    mv      MACRO   dest,source
+                    %L      LDA     %2
+                            STA     %1
+                            ENDM
+                    
+                    ;
+                  ATARI CAMAC Assembler Ver  1.0A  Page   6
+                                                       D1:MACS.           
+  MACROs                                            
+
+                    ; branch if (previous compare) less than
+                    blt     MACRO   where
+                    %L      BCC     %1
+                            ENDM
+                    
+                    ;
+                    ; branch if (previous compare) greater than or equal
+                    bge     MACRO   where
+                    %L      BCS     %1
+                            ENDM
+                    
+                    
+                    ;
+                    ; double-increment
+                    dinc    MACRO   where
+                    %L      INC     %1
+                            BNE     ?%K
+                            INC     %1+1
+                    ?%K
+                            ENDM
+                    
+                    ;
+                    ; double-decrement
+                    ddec    MACRO   where
+                    %L      DEC     %1
+                            INC     %1
+                            BNE     ?%K
+                            DEC     %1+1
+                    ?%K     DEC     %1
+                    
+                            ENDM
+                    
+                    ;
+                    ; double add
+                    dadd    MACRO   dest,src
+                    %L      CLC
+                            LDA     %2
+                            ADC     %1
+                            STA     %1
+                            LDA     %2+1
+                            ADC     %1+1
+                            STA     %1+1
+                            ENDM
+                    
+                    ;
+                    ; double-add immediate
+                    dadi    MACRO   dest,imm
+                    %L      CLC
+                            LDA     #LOW %2
+                            ADC     %1
+                            STA     %1
+                            LDA     #HIGH %2
+                            ADC     %1+1
+                            STA     %1+1
+                    
+                            ENDM
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page   7
+                                                       D1:MACS.           
+  MACROs                                            
+
+                    ;
+                    ; double-subtract
+                    dsub    MACRO   dest,src
+                    %L      SEC
+                            LDA     %1
+                            SBC     %2
+                            STA     %1
+                            LDA     %1+1
+                            SBC     %2+1
+                            STA     %1+1
+                            ENDM
+                    
+                    ;
+                    ; double-subract immediate
+                    dsubi   MACRO   dest,imm
+                    %L      SEC
+                            LDA     %1
+                            SBC     #LOW %2
+                            STA     %1
+                            LDA     %1+1
+                            SBC     #HIGH %2
+                            STA     %1+1
+                    
+                            ENDM
+                    ;
+                    ; double-load off of X from high, low table
+                    tldx    MACRO   dest,table
+                    %L      LDA     %2H,X
+                            STA     %1+1
+                            LDA     %2L,X
+                            STA     %1
+                    
+                            ENDM
+                    
+                    ;
+                    ; double load from table indexed by Y
+                    tldy    MACRO   dest,table
+                    %L      LDA     %2H,Y
+                            STA     %1+1
+                            LDA     %2L,Y
+                            STA     %1
+                    
+                            ENDM
+                    
+                    ;
+                    ; PERC is used for difficulty tables.  It takes one argumen:
+                    ; probability factor N from 0% to 99%, and DBs a value such:
+                    ; register RANDOM will be /less/ than that value N% of the :
+                    ;
+                    perc    MACRO   probability_in_percent
+                    %L      db      high [%1 * 655]
+                            ENDM
+                    
+                    ;
+                    ; ODLINE is used to compute a scanline offset.  Its argumen:
+                    ; scanline number, and it DBs an offset into the display li:
+                    ;
+                  ATARI CAMAC Assembler Ver  1.0A  Page   8
+                                                       D1:MACS.           
+  MACROs                                            
+
+                    ; ***WARNING***WARNING***WARNING***WARNING***WARNING***WARN:
+                    ; This code is highly dependent on the fact that the graphi:
+                    ; starts on a 4K boundary plus $100, and that there are exa:
+                    ; scanlines.  It assumes various things about the display l:
+                    ; you are foolish enough to tweak things in the display lis:
+                    ; lest you break something.
+                    ;
+                    odline  MACRO   scanline_number
+                            if      %1 = 0
+                    %L      db      0
+                            endif
+                            if      %1 < 96 and %1 <> 0
+                    %L      db      %1+2
+                            endif
+                            if      %1 > 96
+                    %L      db      %1+4
+                            endif
+                            ENDM
+                    
+                    ;
+                    ; begin local label area
+                    ; (Sort of a kludge...but it works....)
+                    local   MACRO   no_arguments
+                            EPROC
+                    %L      PROC
+                            ENDM
+                    
+  00C2  = 3100              org     $3100
+                    ; pokey init
+                    ;
+  3100  A903        sinit   lda     #3              ;pokey init
+  3102  8D0FD2              sta     skctl           ;to be done once only
+  3105  8D3202              sta     sskctl
+  3108  A900                lda     #0
+  310A  8D08D2              sta     audctl
+  310D  A0E5                ldy     #low clr
+  310F  A231                ldx     #high clr
+  3111  A907                lda     #7
+  3113  205CE4              jsr     setvbv
+                    
+  3116  207833              jsr     expndi
+                    
+  3119  A907                lda     #intle1
+  311B  8DCF06              sta     intfg
+  311E  A91B                lda     #intle2
+  3120  8D9637              sta     music2
+  3123  20D931              jsr     pause
+                    
+  3126  A90C                lda     #howlen
+  3128  8DCE06              sta     howfg
+  312B  8D7B37              sta     globix
+  312E  8D7D37              sta     globix+2
+  3131  20D931              jsr     pause
+                    
+  3134  208033              jsr     expnds
+                    
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page   9
+                                                       D1:CSOUNDS.        
+  MACROs                                            
+
+  3137  A90A                lda     #wlklen
+  3139  8DCD06              sta     wlkfg
+  313C  20D931              jsr     pause
+                    
+  313F  A930                lda     #jmplen
+  3141  8DCC06              sta     jmpfg
+  3144  20D931              jsr     pause
+                    
+  3147  A90F                lda     #rivlen
+  3149  8DCB06              sta     rivfg
+  314C  8D7B37              sta     globix
+  314F  8D7D37              sta     globix+2
+  3152  20D931              jsr     pause
+                    
+  3155  207033              jsr     expndr
+                    
+  3158  A990                lda     #rotlen
+  315A  8DCA06              sta     rotfg
+  315D  20D931              jsr     pause
+                    
+  3160  208033              jsr     expnds
+                    
+                    
+  3163  A94A                lda     #mr2len
+  3165  8DC906              sta     mr2fg
+  3168  20D931              jsr     pause
+                    
+  316B  A91D                lda     #mr1len
+  316D  8DC806              sta     mr1fg
+  3170  20D931              jsr     pause
+                    
+  3173  A9B6                lda     #atklen
+  3175  8DC706              sta     atkfg
+  3178  20D931              jsr     pause
+  317B  A9FF                lda     #hamle2
+  317D  8DC606              sta     hamfg
+  3180  8D7C37              sta     hamix+2
+  3183  A9F4                lda     #hamle3
+  3185  8D7E37              sta     hamix+4
+  3188  A9EF                lda     #hamle4
+  318A  8D8037              sta     hamix+6
+  318D  20D931              jsr     pause
+                    
+  3190  A918                lda     #stplen
+  3192  8DC506              sta     stpfg
+  3195  20D931              jsr     pause
+                    
+  3198  A900                lda     #0
+  319A  8D9537              sta     vtime
+  319D  A916                lda     #falfv
+  319F  8D9737              sta     falf3
+  31A2  A9A3                lda     #falcv
+  31A4  8D9837              sta     falc3
+  31A7  8DC406              sta     falfg
+  31AA  20D931              jsr     pause
+                            
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page  10
+                                                       D1:CSOUNDS.        
+  MACROs                                            
+
+  31AD  A911                lda     #grnlen
+  31AF  8DC306              sta     grnfg
+  31B2  8D7F37              sta     globix+4
+  31B5  8D8137              sta     globix+6
+  31B8  20D931              jsr     pause
+                    
+  31BB  A904                lda     #grllen
+  31BD  8DC206              sta     grlfg
+  31C0  8D7F37              sta     globix+4
+  31C3  8D8137              sta     globix+6
+  31C6  20D931              jsr     pause
+                    
+  31C9  A90F                lda     #sprlen
+  31CB  8DC106              sta     sprfg
+  31CE  20D931              jsr     pause
+                    
+  31D1  A92D                lda     #pntlen
+  31D3  8DC006              sta     pntfg
+  31D6  4CD631      jmp     jmp     jmp
+                    
+  31D9              pause
+  31D9  AEFC02              ldx     ch
+  31DC  E8                  inx
+  31DD  F0FA ^31D9          beq     pause   ;no key-->
+  31DF  A2FF                ldx     #$ff
+  31E1  8EFC02              stx     ch
+  31E4  60                  rts
+                    
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page  11
+                                                       D1:CSOUNDS.        
+  MACROs                                            
+
+                    ; main sound driver
+                    ;
+  31E5                      proc
+  31E5  A900        clr     lda     #0              ;done every vblank
+  31E7  8DF106              sta     cnt1s
+  31EA  8DF306              sta     cnt2s
+  31ED  8DF506              sta     cnt3s
+  31F0  8DF706              sta     cnt4s
+  31F3  A20F                ldx     #mstnum         ;init sound state flag ctr
+  31F5  8E7A37              stx     mstctr
+  31F8              :lp                             ;sound loop
+                    
+  31F8  AE7A37              ldx     mstctr
+  31FB  BDC006              lda     mstate,x
+  31FE  F003 ^3203          beq     :off
+  3200  201632              jsr     dosound
+  3203              :off
+  3203  CE7A37              dec     mstctr
+  3206  10F0 ^31F8          bpl     :lp
+                    
+                    ****************************
+                    * load all audio registers *
+                    ****************************
+                    
+                    
+  3208  A207        load    ldx     #7
+  320A  BDF006      :lp1    lda     frq1s,x
+  320D  9D00D2              sta     audf1,x
+  3210  CA                  dex     
+  3211  10F7 ^320A          bpl     :lp1
+  3213  4C62E4              jmp     xitvbv          ;exit from deferred vblank
+                            eproc
+                    
+                    ****************************
+                    *
+  3216              dosound
+  3216  18                  clc
+  3217  A927                lda     #low intro
+  3219  7D1A37              adc     sjtab,x
+  321C  85B8                sta     stmp
+  321E  A932                lda     #high intro
+  3220  6900                adc     #0
+  3222  85B9                sta     stmp+1
+  3224  6CB800              jmp     (stmp)          ;do indirect jmp
+                    
+                    
+                    
+                    *****************************
+                    * music routine:            *
+                    * intro                     *
+                    *                           *****************
+                    *intrx1 = duration index of ch1 current note*
+                    *intrx2 = duration index of ch2 current note*
+                    *music1 = index into ch1 tables             *
+                    *music2 = index into ch2 tables             *
+                    *********************************************
+  3227                      proc                    ;ape walks up ladder with g:
+                  ATARI CAMAC Assembler Ver  1.0A  Page  12
+                                                       D1:CSOUNDS.        
+  MACROs                                            
+
+                    
+                    ;***
+                    ; activated by: intfg = #intle1, music2 = #intle2
+                    ; assumes totdrs =< 0 on entry, will exit w/ totdrs<0
+                    ;
+  3227              intro
+  3227  A9A8                lda     #intc1          ;audio control
+  3229  8DF106              sta     cnt1s
+  322C  8DF306              sta     cnt2s
+  322F  CE8C37              dec     totdrs          ;check duration
+  3232  1014 ^3248          bpl     :1$             ;done?
+  3234  CECF06              dec     intfg            ;yes. get next note
+  3237  F026 ^325F          beq     :done           ;done with tune?
+  3239  AECF06              ldx     intfg           ;no, play next note
+  323C  BD1D50              lda     intl1-1,x       ;get duration
+  323F  8D8C37              sta     totdrs
+  3242  BD1750              lda     intf1-1,x       ;get note
+  3245  8DF006              sta     frq1s
+  3248              :1$
+  3248  CE8E37              dec     totdrs+2
+  324B  1012 ^325F          bpl     :done
+  324D  CE9637              dec     music2
+  3250  AE9637              ldx     music2
+  3253  BD3D50              lda     intl2-1,x
+  3256  8D8E37              sta     totdrs+2
+  3259  BD2350              lda     intf2-1,x
+  325C  8DF206              sta     frq2s
+  325F              :done
+  325F  60                  rts
+                            eproc
+                    
+                    
+                    ;****
+                    ; activated by:  howfg = globix(1,2) = #howlen
+                    ;
+  3260                      proc
+                    
+  3260              howmuch
+  3260  A200                ldx     #ch1off         ;chan 1 offset
+                                                    ;lo of current freq table
+  3262  A0EA                ldy     #low howa1
+  3264  A936                lda     #high howa1     ;args for call to muspr
+  3266  202033              jsr     muspr
+                    
+                    
+  3269  A202                ldx     #ch2off         ;chan 2 offset
+                                                    ;lo of current freq table
+  326B  A0F2                ldy     #low howa2
+  326D  A936                lda     #high howa2
+  326F  202033              jsr     muspr
+                                                    ;update top-level status
+  3272  8DCE06              sta     howfg           ; w/ channel 2's flag
+  3275  60                  rts
+                            eproc
+                            
+                    ;****
+                    ; activate by setting: rivfg = globix = globix + 2 = #rivle:
+                  ATARI CAMAC Assembler Ver  1.0A  Page  13
+                                                       D1:CSOUNDS.        
+  MACROs                                            
+
+                    ;
+  3276                      proc
+  3276              srivet                          ;man removes last rivet
+  3276  A200                ldx     #ch1off         ;chan 1 offset
+                                                    ;lo of current freq table
+  3278  A0FA                ldy     #low riva1
+                                                    ;hi of current freq table
+  327A  A936                lda     #high riva1
+  327C  202033              jsr     muspr
+                    
+                    
+  327F  A202                ldx     #ch2off         ;chan 2 offset
+                                                    ;lo of current freq table
+  3281  A002                ldy     #low riva2
+                                                    ;hi of current freq table
+  3283  A937                lda     #high riva2
+  3285  202033              jsr     muspr
+                                                    ;update sound state var
+  3288  8DCB06              sta     rivfg
+  328B  60                  rts
+                            eproc
+                    
+                    
+                    ******************
+                    * GENERALIZE     *
+                    * SINGLE VOICE   *
+                    *     DRIVER     *
+                    ******************
+                    
+  328C              voice
+  328C  DEC006              dec     mstate,x        ;countdown state flag
+  328F  BD3A37              lda     fl,x            ;freq, control adr into Zva:
+  3292  85B0                sta     frq
+  3294  BD2A37              lda     fh,x
+  3297  85B1                sta     frq+1
+  3299  BD5A37              lda     cnl,x
+  329C  85B2                sta     cnt
+  329E  BD4A37              lda     cnh,x
+  32A1  85B3                sta     cnt+1
+  32A3  BCC006              ldy     mstate,x        ;bias into freq, control ta:
+  32A6  BD6A37              lda     chnum,x         ;channel #
+  32A9  AA                  tax
+  32AA  B1B0                lda     (frq),y         ;fetch table values
+  32AC  9DF006              sta     frq1s,x         ;put in the correct channel:
+  32AF  B1B2                lda     (cnt),y
+  32B1  9DF106              sta     cnt1s,x
+  32B4  AE7A37              ldx     mstctr          ;recover X as state flag ct:
+  32B7  60                  rts
+                    
+                    
+                    ******************
+                    *       ch1      *
+                    *       walk     *
+                    *       jump     *
+                    *       rivet    *
+                    *       rotate   *
+                    ******************
+                  ATARI CAMAC Assembler Ver  1.0A  Page  14
+                                                       D1:CSOUNDS.        
+  MACROs                                            
+
+                    
+                    ;****
+                    ; activate by setting wlkfg = #wlklen
+                    
+                    ;walk                           ;man walking
+                    
+                    ;****
+                    ; activate by setting jmpfg = #jmplen
+                    
+                    ;jump                           ;man jumps
+                    
+                    ;****
+                    ; activated by: rotfg = rotlen
+                    
+                    ;rotate                         ;man rotates after being hi:
+                    
+                    ******************
+                    *       ch2      *
+                    *       march2   *
+                    *       march1   *
+                    *       attack   *
+                    *       warning ?*
+                    *hammer relocated*
+                    ******************
+                    
+                    
+                    ;****
+                    ; activated by: mr2fg = mr2len
+                    
+                    ;march2                 ;background music
+                    
+                    ;****
+                    ; activated by: mr1fg = mr1len
+                    
+                    ;march1                         ;background music
+                    
+                    ;****
+                    ; activated by: atkfg = atklen
+                    
+                    
+                    ;attack                         ;theme while man holds hamm:
+                    
+                    
+                    *****************
+                    *       ch3     *
+                    *       stamp   *
+                    *       fall    *
+                    *       grin    *
+                    *       girl1   *
+                    *****************
+                    
+                    ;****
+                    ; activated by: stpfg = stplen
+                    
+                    ;stamp                          ;ape stamps foot &
+                                                    ;  ape falls
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page  15
+                                                       D1:CSOUNDS.        
+  MACROs                                            
+
+                    ;****
+                    ; activated by: falfg <> 0 & vtime=0 & falf3=falfv & falc3=:
+                    ; uses: vtime - mutual exclusive w/ hammer
+                    
+  32B8                      proc
+  32B8              fall                            ;springy things falling and
+                                                    ;man falling and ape fallin:
+  32B8  AD9737              lda     falf3
+  32BB  8DF406              sta     frq3s
+  32BE  AD9837              lda     falc3
+  32C1  8DF506              sta     cnt3s
+  32C4  EE9537              inc     vtime           ;volume increment? (every 1:
+  32C7  AD9537              lda     vtime
+  32CA  2907                and     #7              ;ck lower 3 bits
+  32CC  D003 ^32D1          bne     :1$
+  32CE  EE9837              inc     falc3
+  32D1              :1$
+  32D1  EE9737              inc     falf3
+  32D4  38                  sec
+  32D5  AD9737              lda     falf3
+  32D8  E966                sbc     #102
+  32DA  D003 ^32DF          bne     :ret            ;not finished yet-->
+  32DC  8DC406              sta     falfg           ;0 state flag
+  32DF              :ret
+  32DF  60                  rts
+                            eproc
+                    
+                    ;****
+                    ; activated by: grnfg = grnlen
+                    
+                    ;grin                           ;ape grimacing and
+                                                    ;sfx at broken heart
+                    
+  32E0                      proc
+  32E0              girl1                                   ;boy gets girl
+  32E0  A204                ldx     #ch3off         ;chan 3 offset
+  32E2  A00A                ldy     #low grla3      ;ptr table adr as arg
+  32E4  A937                lda     #high grla3
+  32E6  202033              jsr     muspr
+                    
+                    
+  32E9  A206                ldx     #ch4off         ;chan 4 offset
+                                                    ;lo of current freq table
+  32EB  A012                ldy     #low grla4
+  32ED  A937                lda     #high grla4
+  32EF  202033              jsr     muspr
+  32F2  8DC206              sta     grlfg           ;update flag
+  32F5  60                  rts
+                            eproc
+                    
+                    
+                    *****************
+                    *       ch4     *
+                    *       spring  *
+                    *       points  *
+                    *****************
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page  16
+                                                       D1:CSOUNDS.        
+  MACROs                                            
+
+                    
+                    ;****
+                    
+                    ; activated by: sprfg = srplen
+                    
+                    ;spring                         ;springy things bouncing
+                    
+                    ;points                         ;points scored
+                    
+                    
+                    ;****
+                    ; activated by: hamfg <> 0, hamix+2 = -1, hamix+4 = -12, ha:
+                    
+                    
+  32F6                      proc                    ;hammer strikes killable ob:
+  32F6              hammer
+  32F6  A202                ldx     #ch2off         ;channel one offset
+  32F8              :chpr
+  32F8  FE7A37              inc     hamix,x
+  32FB  3013 ^3310          bmi     :nxch           ;still neg, channel not sta:
+  32FD  BC7A37              ldy     hamix,x
+  3300  C045                cpy     #hamlen
+  3302  B013 ^3317          bcs     :endch          ;this channel is OFF-->
+  3304  B9DB53              lda     hamf,y
+  3307  9DF006              sta     frq1s,x
+  330A  B9A751              lda     hamc,y
+  330D  9DF106              sta     cnt1s,x
+  3310              :nxch
+  3310  E8                  inx                     ;bump to next channel bias
+  3311  E8                  inx
+  3312  E008                cpx     #8              ;finished w/ channel 4?
+  3314  90E2 ^32F8          bcc     :chpr           ;not yet-->
+  3316  60                  rts
+  3317              :endch
+  3317  8A                  txa                     ;channel offset
+  3318  E906                sbc     #6              ;CARRY already SET to get h:
+  331A  8DC606              sta     hamfg           ;=0 if channel 4
+  331D  4C1033              jmp     :nxch
+                    
+                            eproc
+                    
+                    **********************
+                    * music routine with *
+                    *  simple envelope   *
+                    **********************
+                    
+                    ***********************************************************:
+                    * this is re-entrant to a point. only a few routines can us:
+                    * subroutine. since a finite number of shadows are used; on:
+                    * four voices can be utiilized and all four voices have to :
+                    * sounded to completion so the shadows will be re-initializ:
+                    * it's best to use this as a subroutine only if you know th:
+                    * no other sound routines will use it.                     :
+                    ***********************************************************:
+  3320                      proc
+  3320              muspr
+  3320  DE8C37              dec     totdrs,x        ;get next note?
+                  ATARI CAMAC Assembler Ver  1.0A  Page  17
+                                                       D1:CSOUNDS.        
+  MACROs                                            
+
+  3323  102A ^334F          bpl     :comp           ;(make sure totdrs=<0 at en:
+                    
+  3325  84B8                sty     stmp            ;get ptr to adr table into :
+  3327  85B9                sta     stmp+1
+  3329  A007                ldy     #7
+  332B              :adrlp                          ;load addresses
+  332B  B1B8                lda     (stmp),y
+  332D  99B000              sta     frq,y
+  3330  88                  dey
+  3331  10F8 ^332B          bpl     :adrlp
+                    
+  3333  DE7B37              dec     globix,x        ;global index into sound ta:
+  3336  3035 ^336D          bmi     :chdon          ;DONE w/ this channel, QUIT:
+                    
+  3338  BC7B37              ldy     globix,x
+  333B  B1B0                lda     (frq),y         ;get next freq in sound tab:
+  333D  9D8337              sta     musfs,x         ;freq shadow
+  3340  B1B2                lda     (cnt),y         ;control byte from sound ta:
+  3342  9D8437              sta     muscs,x         ;control shadow
+  3345  B1B4                lda     (length),y      ;length byte from sound tab:
+  3347  9D8C37              sta     totdrs,x        ;total duration shadow
+  334A  B1B6                lda     (sustain),y
+  334C  9D8B37              sta     suslns,x        ;sustain length shadow
+                    
+  334F              :comp
+  334F  DE8B37              dec     suslns,x        ;done with sustain?
+  3352  100A ^335E          bpl     :load           ;no-->
+                                                    ;decrement volume
+  3354  BD8437      :vol    lda     muscs,x
+  3357  290F                and     #$0f            ;get right side
+  3359  F003 ^335E          beq     :load           ;don't decrement no-volume
+  335B  DE8437              dec     muscs,x
+                    
+  335E  BD8337      :load   lda     musfs,x         ;load audio registers
+  3361  9DF006              sta     frq1s,x
+  3364  BD8437              lda     muscs,x
+  3367  9DF106              sta     cnt1s,x
+  336A  A901                lda     #1
+  336C  60                  rts
+                    
+  336D              :chdon
+  336D  A900                lda     #0
+  336F  60                  rts
+                            eproc
+                  ATARI CAMAC Assembler Ver  1.0A  Page  18
+                                                       D1:CSOUNDS.        
+  MACROs                                            
+
+                    
+  3370              expndr
+  3370  A9A3                lda     #low rotsda
+  3372  85BA                sta     tmp
+  3374  A936                lda     #high rotsda
+  3376  D00E ^3386          bne     expmrg                  ;uncond-->
+  3378              expndi
+  3378  A912                lda     #low intsda
+  337A  85BA                sta     tmp
+  337C  A934                lda     #high intsda
+  337E  D006 ^3386          bne     expmrg                  ;uncond-->
+  3380              expnds
+  3380  A97B                lda     #low snddat
+  3382  85BA                sta     tmp
+  3384  A934                lda     #high snddat
+  3386              expmrg
+  3386  85BB                sta     tmph
+  3388  A950                lda     #high sbuf
+  338A  85BD                sta     tmp1h
+  338C  A900                lda     #low sbuf
+  338E  85BC                sta     tmp1
+  3390  4C9333              jmp     unpack          ;implied RTS
+                    
+                    
+                            include d:nmisc
+                  ATARI CAMAC Assembler Ver  1.0A  Page  19
+                                                       D1:NMISC.          
+  Miscellaneous subroutines                         
+
+  3393              ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                    ;;                                                      ;;
+                    ;;              Miscellaneous Subroutines               ;;
+                    ;;                                                      ;;
+                    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+                    
+                    
+                    ;
+                    ; UNPACK - unpack compressed data
+                    ; Passed: tmp -> source area
+                    ;         tmp1-> dest area
+                    ; Returns: nothing
+                    ; Uses: AXY, tmp, tmp1, tmp2
+                    ;
+                    ; Method: Data is compressed in the following format:
+                    ;
+                    ; data  ::= <repeat> <byte> | <block> <data> | <blkdup> <da:
+                    ; end   ::= $00
+                    ; data  ::= <byte> <data> | <data>
+                    ; block ::= %0xxxxxxx                   [ 'xxxxxxx' = lengt:
+                    ; repeat::= %10xxxxxx                   [ 'xxxxxx' = length:
+                    ; blkdup::= %11xxxxxx <size>            [ 'xxxxxx' = length:
+                    ;
+                    ; 'repeat' will repeat the next byte 'xxxxxx' times.
+                    ; 'block' quotes the next block of 'xxxxxxx' bytes.
+                    ; 'blkdup' will duplicate the next block of 'size' bytes 'x:
+                    ;
+                    ;
+                    ; Bugs: a repeat count of zero in the source will cause Unp:
+                    ;       fill 256 bytes with the appropriate byte, and to ad:
+                    ;       destination pointer by ZERO.
+                    ;
+  3393              unpack  local
+       +                    EPROC
+  3393 +            UNPACK  PROC
+  3393  A000        :loop   ldy     #0
+  3395  B1BA                lda     (tmp),y                 ; get type of thing:
+  3397  F078 ^3411          beq     :r                      ; $00 ==> end, so r:
+  3399  301C ^33B7          bmi     :dup                    ; $80..$ff ==> dup,:
+                    
+                    ;
+                    ; copy a bunch of bytes from the source
+                    ;
+  339B  AA                  tax                             ; X = byte count
+  339C                      dinc    tmp                     ; realign source po:
+  339C +E6BA                INC     TMP
+  339E +D002 ^33A2          BNE     ?0002
+  33A0 +E6BB                INC     TMP+1
+  33A2 +            ?0002
+  33A2  B1BA        :1      lda     (tmp),y                 ; get source byte..:
+  33A4  91BC                sta     (tmp1),y                ;  ...and shove it :
+  33A6                      dinc    tmp                     ; ++ source pointer
+  33A6 +E6BA                INC     TMP
+  33A8 +D002 ^33AC          BNE     ?0003
+  33AA +E6BB                INC     TMP+1
+  33AC +            ?0003
+  33AC                      dinc    tmp1                    ; ++ dest pointer
+                  ATARI CAMAC Assembler Ver  1.0A  Page  20
+                                                       D1:NMISC.          
+  Miscellaneous subroutines                         
+
+  33AC +E6BC                INC     TMP1
+  33AE +D002 ^33B2          BNE     ?0004
+  33B0 +E6BD                INC     TMP1+1
+  33B2 +            ?0004
+  33B2  CA                  dex                             ; -- byte count
+  33B3  D0ED ^33A2          bne     :1                      ; (more to do)
+  33B5  F0DC ^3393          beq     :loop                   ; [uncond]
+                    
+  33B7  C9C0        :dup    cmp     #%11000000              ; block duplicate?
+  33B9  293F                and     #$3f                    ; get length
+  33BB  B01D ^33DA          bcs     :dupblk                 ; (yes)
+                    
+                    ;
+                    ; duplicate a byte
+                    ;
+  33BD  AA                  tax                             ;  into X
+  33BE  C8                  iny                             ; get byte to dupli:
+  33BF  B1BA                lda     (tmp),y
+  33C1  88                  dey
+                    
+  33C2  91BC        :2      sta     (tmp1),y                ; store byte in des:
+  33C4                      dinc    tmp1                    ; ++ dest pointer
+  33C4 +E6BC                INC     TMP1
+  33C6 +D002 ^33CA          BNE     ?0005
+  33C8 +E6BD                INC     TMP1+1
+  33CA +            ?0005
+  33CA  CA                  dex
+  33CB  D0F5 ^33C2          bne     :2
+                    
+  33CD  A902                lda     #2
+  33CF              :4                                      ; tmp += hei for du:
+  33CF  18                  clc                             ; tmp += 2
+  33D0  65BA                adc     tmp
+  33D2  85BA                sta     tmp
+  33D4  90BD ^3393          bcc     :loop
+  33D6  E6BB                inc     tmph
+  33D8  D0B9 ^3393          bne     :loop                   ; ["uncond"]
+                    
+                    ;
+                    ; duplicate a block of bytes
+                    ;
+  33DA              :dupblk
+  33DA  85C1                sta     yi                      ; yi as the repeat :
+  33DC                      dinc    tmp
+  33DC +E6BA                INC     TMP
+  33DE +D002 ^33E2          BNE     ?0006
+  33E0 +E6BB                INC     TMP+1
+  33E2 +            ?0006
+  33E2  B1BA                lda     (tmp),y                 ; hei = pristine bl:
+  33E4  85C0                sta     hei
+  33E6                      dinc    tmp
+  33E6 +E6BA                INC     TMP
+  33E8 +D002 ^33EC          BNE     ?0007
+  33EA +E6BB                INC     TMP+1
+  33EC +            ?0007
+                    ;
+                    ; copy one block
+                  ATARI CAMAC Assembler Ver  1.0A  Page  21
+                                                       D1:NMISC.          
+  Miscellaneous subroutines                         
+
+                    ;
+  33EC  A6C0        :3      ldx     hei                     ; X = block size
+  33EE                      dmv     tmp2,tmp                ; tmp2 -> block
+  33EE +A5BA                LDA     TMP
+  33F0 +85BE                STA     TMP2
+  33F2 +A5BB                LDA     TMP+1
+  33F4 +85BF                STA     TMP2+1
+  33F6  B1BE        :5      lda     (tmp2),y                ; get src byte
+  33F8  91BC                sta     (tmp1),y                ;    and shove into:
+  33FA                      dinc    tmp1                    ; ++ pointers
+  33FA +E6BC                INC     TMP1
+  33FC +D002 ^3400          BNE     ?0009
+  33FE +E6BD                INC     TMP1+1
+  3400 +            ?0009
+  3400                      dinc    tmp2
+  3400 +E6BE                INC     TMP2
+  3402 +D002 ^3406          BNE     ?000A
+  3404 +E6BF                INC     TMP2+1
+  3406 +            ?000A
+  3406  CA                  dex                             ; -- count
+  3407  D0ED ^33F6          bne     :5                      ; [more bytes to co:
+                    
+  3409  C6C1                dec     yi                      ; -- block count
+  340B  D0DF ^33EC          bne     :3                      ; [more blocks to d:
+  340D  A5C0                lda     hei                     ; adjust source poi:
+  340F  D0BE ^33CF          bne     :4                      ; ["uncond"]
+                    
+  3411  60          :r      rts
+                            include d:csndtbl
+                    ;  COMBINED SOUND DATA FILE
+                    
+                    ;****
+                    ; INTRO.MAC
+                    ;
+                    
+        = 00A8      INTC1   EQU     $A8
+        = 00A8      INTC2   EQU     $A8
+        = 0016      falfv   =       $16
+        = 000C      HOWLEN  equ     12
+        = 00A3      falcv   =       $a3
+        = 0007      intle1  =       7
+        = 001B      intle2  =       $1b
+                    
+  3412              INTSDA
+        = 5000      HOWC1   =       SBUF+$0
+        = 500C      HOWC2   =       SBUF + $C
+        = 5018      INTF1   =       SBUF + $18
+        = 501E      INTL1   =       SBUF + $1E
+        = 5024      INTF2   =       SBUF + $24
+        = 503E      INTL2   =       SBUF + $3E
+        = 5058      HOWF1   =       SBUF + $58
+        = 5064      HOWD1   =       SBUF + $64
+        = 5070      HOWS1   =       SBUF + $70
+        = 507C      HOWF2   =       SBUF + $7C
+        = 5088      HOWD2   =       SBUF + $88
+        = 5094      HOWS2   =       SBUF + $94
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page  22
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+                    ;HOWC1
+                    ;       DB      $C9,$C9,$C9,$C9
+                    ;       DB      $C9,$C9,$C9,$C9,$C8,$C8,$C8,$C8
+  3412  88C9                DB      $80+8,$C9
+  3414  84C8                DB      $80+4,$C8
+                    ;HOWC2
+                    ;       DB      0,0,0,0,0
+                    ;       DB      $AC,$AB,$AB,$AB,$AB,$AB,$AA
+  3416  8500                DB      $80+5,0
+  3418  01AC                DB      1,$AC
+  341A  85AB                DB      $80+5,$AB
+  341C  0DAA                DB      13,$AA                  ;include INTF1 & IN:
+                    
+                    ;SOUND CHANNEL 1
+                    ;INTF1
+  341E  A2ADF3CCD9          db      $A2,$AD,$F3,$CC,$D9,$F3
+                    
+                    ;INTL1
+  3424  3656302814          db      $36,$56,$30,$28,$14,$3d
+                    
+                    ;SOUND CHANNEL 2
+                    ;INTF2
+                    ;       DB      81,85,81,85,81,85,81
+                    ;       DB      85,81,85,81,85,81,85,81,85,81
+                    ;       DB      85,81,85,81,85,162,136,144,162
+  342A  CB025155            db      $C0+11,2,81,85
+  342E  06                  db      6
+  342F  A28890A2            DB      162,136,144,162
+  3433  3606                DB      54,6
+                    
+                    ;INTL2
+                    ;       DB      54,6,3,3,3,3,3,3,3,3,3,3,3
+                    ;       DB      3,3,3,3,3,3,3,3,3,48,40,20,61
+  3435  9403                db      $80+20,3
+  3437  11                  db      17
+  3438  3028143D            db      48,40,20,61
+                    ;****
+                    ; HOWMUCH.ASM
+                    ;
+                    
+                    ;       This data came from D:HOWMUCH.SND
+                    
+                    ;       LOW BASS
+                    ;HOWF1
+  343C  6E748392            DB      110,116,131,146
+  3440  A1ADC5DAC5          DB      161,173,197,218,197,146,197,146
+                    
+                    ;HOWD1
+                    ;       DB      8,4,4,4,4,4,5,11,22,20,21,20
+  3448  08                  db      8
+  3449  8504                db      $80+5,4
+  344B  07                  db      7                       ; sraddle
+  344C  050B161415          db      5,11,22,20,21,20
+                    ;HOWS1
+                    ;       DB      3,2,2,2,2,2,3,7,8,8,8,7
+  3452  03                  db      3
+  3453  8502                db      $80+5,2
+                  ATARI CAMAC Assembler Ver  1.0A  Page  23
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+  3455  06                  db      6
+  3456  0307080808          db      3,7,8,8,8,7
+                            
+                    ;       This is sound channel 02
+                    ;HOWF2
+                    ;       DB      0,0,0,0,0,67,53,60,53,45,53,60
+  345C  8500                db      $80+5,0
+  345E  07                  db      7
+  345F  43353C352D          db      67,53,60,53,45,53,60
+                    
+                    ;HOWD2
+                    ;       DB      4,4,4,4,4,25,10,10,10,21,18,13
+  3466  8504                db      $80+5,4
+  3468  07                  db      7
+  3469  190A0A0A15          db      25,10,10,10,21,18,13
+                    ;HOWS2
+                    ;       DB      0,0,0,0,0,12,4,5,5,11,6,7
+  3470  8500                db      $80+5,0
+  3472  07                  db      7
+  3473  0C0405050B          db      12,4,5,5,11,6,7
+                    
+  347A  00                  db      0                       ;end of INTSDAT
+                    
+                    
+                    ***********************************************************:
+                    ***********************************************************:
+  347B              SNDDAT
+        = 5000      stpf3   =       SBUF + $0
+        = 5018      STPC3   =       SBUF + $18
+        = 5030      WLKC1   =       SBUF + $30
+        = 503A      JMPC1   =       SBUF + $3A
+        = 506A      RIVC1   =       SBUF + $6A
+        = 5079      RIVC2   =       SBUF + $79
+        = 5089      MR2C2   =       SBUF + $89
+        = 50D3      MR1C2   =       SBUF + $D3
+        = 50F1      ATKC2   =       SBUF + $F1
+        = 51A7      HAMC    =       SBUF + $1A7
+        = 51EC      SPRC4   =       SBUF + $1EC
+        = 51FC      GRLC3   =       SBUF + $1FC
+        = 51FC      GRLC4   =       SBUF + $1FC
+        = 51FC      PNTC4   =       SBUF + $1FC
+        = 522A      WLKF1   =       SBUF + $22A
+        = 5234      JMPF1   =       SBUF + $234
+        = 5264      RIVF1   =       SBUF + $264
+        = 5273      RIVD1   =       SBUF + $273
+        = 5282      RIVS1   =       SBUF + $282
+        = 5291      RIVF2   =       SBUF + $291
+        = 52A0      RIVD2   =       SBUF + $2A0
+        = 52AF      RIVS2   =       SBUF + $2AF
+        = 52BE      MR2F2   =       SBUF + $2BE
+        = 5308      MR1F2   =       SBUF + $308
+        = 5325      ATKF2   =       SBUF + $325
+        = 53DB      HAMF    =       SBUF + $3DB
+        = 5420      GRNF3   =       SBUF + $420
+        = 5431      GRNC3   =       SBUF + $431
+        = 5442      GRLF3   =       SBUF + $442
+        = 5446      GRLF4   =       SBUF + $446
+                  ATARI CAMAC Assembler Ver  1.0A  Page  24
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+        = 544A      GRLD3   =       SBUF + $44A
+        = 544A      GRLD4   =       SBUF + $44A
+        = 544E      GRLS3   =       SBUF + $44E
+        = 544E      GRLS4   =       SBUF + $44E
+        = 5452      SPRF4   =       SBUF + $452
+        = 5461      PNTF4   =       SBUF + $461
+                    
+                    
+                    ;stpf3
+                    ;       db      $66,$66,$66,$66,$66,$66,$66,$66
+                    ;       db      $66,$66,$66,$66,$66,$66,$66,$66
+                    ;       db      $66,$66,$66,$66,$66,$66,$66,$66
+  347B  9866                DB      $80+24,$66
+                    
+                    ;STPC3
+                    ;       DB      $80,$81,$82,$83,$84,$85,$86,$87
+                    ;       DB      $88,$89,$8A,$8B,$8C,$8D,$8E,$8F
+                    ;       DB      $8F,$8F,$8F,$8F,$8F,$8F,$8F,$8F
+  347D  0F                  DB      15
+  347E  8081828384          DB      $80,$81,$82,$83,$84,$85,$86,$87
+  3486  88898A8B8C          DB      $88,$89,$8A,$8B,$8C,$8D,$8E
+  348D  898F                DB      $80+9,$8F
+                    
+                    ****************************************************
+                    *
+                    *
+                    
+                    ;WLKC1
+                    ;       db      $a2,$a3,$a4,$a5,$a6,$a6,$a6,$a5,$a4,$a4
+  348F  0B                  DB      11
+  3490  A2A3A4A5A6          db      $a2,$a3,$a4,$a5,$a6,$a6,$a6,$a5,$a4,$a4
+                    
+                    ;JMPC1
+                    ;       db      $a2,$a3,$a3,$a3,$a3,$a3,$a4,$a4
+                    ;       db      $a4,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+                    ;       db      $a6,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+                    ;       db      $a6,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+                    ;       db      $a6,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+                    ;       db      $a6,$a6,$a6,$a6,$a5,$a5,$a4,$a4
+  349A  A2                  DB      $A2
+  349B  85A3                DB      $80+5,$A3
+  349D  83A4                DB      $80+3,$A4
+  349F  A3A6                DB      $80+35,$A6
+  34A1  82A5                DB      $80+2,$A5
+  34A3  82A4                DB      $80+2,$A4
+                    
+                    
+                    ;
+                    ;RIVC1
+                    ;       DB      0,0,0,0,0,0,0,0,0,0,0,0,$A9,$A9,$A9
+  34A5  8C00                DB      $80+12,0
+  34A7  93A9                DB      $80+19,$A9              ;sraddling RIVC2
+                    
+                    ;RIVC2
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page  25
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+                    ;MR2C2
+                    ;       db      $a0,$a0,$a1,$a2,$a3,$a4,$a4,$a5,$a5,$a0
+                    ;       db      $a0,$a0,$a2,$a3,$a4,$a4,$a5,$a5
+                    ;       db      $a0,$a0,$a0,$a2,$a3,$a4,$a4,$a5
+                    ;       db      $a5,$a0,$a0,$a0,$a0,$a0,$a0,$a0
+                    ;       db      $a0,$a0,$a0,$a1,$a2,$a3,$a3,$a4
+                    ;       db      $a4,$a4,$a5,$a5,$a5,$a5,$a0,$a0
+                    ;       db      $a0,$a0,$a0,$a0,$a0,$a0,$a0,$a0
+                    ;       db      $a0,$a0,$a0,$a0,$a0,$a0,$a1,$a2
+                    ;       db      $a3,$a4,$a4,$a4,$a5,$a5,$a5,$a5
+                    
+  34A9  09                  db      9
+  34AA  A0A0A1A2A3          db      $a0,$a0,$a1,$a2,$a3,$a4,$a4,$a5,$a5
+  34B3  C209                db      $C0+2,9
+  34B5  A0A0A0A2A3          db      $a0,$a0,$a0,$a2,$a3,$a4,$a4,$a5,$a5
+  34BE  8AA0                db      $80+10,$a0
+  34C0  04                  db      4
+  34C1  A1A2A3A3            db      $a1,$a2,$a3,$a3
+  34C5  83A4                db      $80+3,$a4
+  34C7  84A5                db      $80+4,$a5
+  34C9  90A0                db      $80+16,$a0
+  34CB  03                  db      3
+  34CC  A1A2A3              db      $a1,$a2,$a3
+  34CF  83A4                db      $80+3,$a4
+  34D1  84A5                db      $80+4,$a5
+                    
+                    
+                    ;MR1C2
+                    ;       db      $a0,$a0,$a0,$a0,$a0,$a0,$a1,$a2,$a3,$a3,$a3:
+                    ;       db      $a0,$a0,$a1,$a1,$a3,$a3,$a3,$a3
+                    ;       db      $a0,$a0,$a1,$a2,$a3,$a3,$a3,$a0
+  34D3  86A0                db      $80+6,$a0
+  34D5  02                  db      2
+  34D6  A1A2                db      $a1,$a2
+  34D8  83A3                db      $80+3,$a3
+  34DA  83A4                db      $80+3,$a4
+  34DC  82A0                db      $80+2,$a0
+  34DE  82A1                db      $80+2,$a1
+  34E0  84A3                db      $80+4,$a3
+  34E2  82A0                db      $80+2,$a0
+  34E4  02                  db      2
+  34E5  A1A2                db      $a1,$a2
+  34E7  83A3                db      $80+3,$a3
+  34E9  01                  db      1
+  34EA  A0                  db      $a0
+                    
+                    
+                    ;ATKC2
+                    ;       DB      $A1,$A2,$A2,$A3,$A3,$A4
+                    ;       db      $a4,$a5,$a5,$a6,$a6,$a6,$a1,$a2
+                    ;       db      $a2,$a3,$a3,$a4,$a4,$a5,$a5,$a6
+                    ;       db      $a6,$a6,$a1,$a2,$a2,$a3,$a3,$a4
+                    ;       db      $a4,$a5,$a5,$a6,$a6,$a6,$a1,$a2
+                    ;       db      $a2,$a3,$a3,$a4,$a4,$a5,$a5,$a6
+                    
+                    
+  34EB  C30C                db      $C0+3,12
+                  ATARI CAMAC Assembler Ver  1.0A  Page  26
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+  34ED  A1A2A2A3A3          DB      $A1,$A2,$A2,$A3,$A3,$A4
+  34F3  A4A5A5A6A6          db      $a4,$a5,$a5,$a6,$a6,$a6
+  34F9  13                  db      19
+  34FA  A1A2A2A3A3          DB      $A1,$A2,$A2,$A3,$A3,$A4
+  3500  A4A5A5A6A6          db      $a4,$a5,$a5,$a6,$a6,$a0
+                    ;       db      $a6,$a0,$a0,$a0,$a1,$a2,$a3,$a4
+  3506  A0A0A1A2A3          db      $a0,$a0,$a1,$a2,$a3,$a4
+                    ;       db      $a4,$a5,$a5,$a5,$a1,$a1,$a1,$a2
+  350C  A4                  db      $a4
+  350D  83A5                db      $80+3,$a5
+  350F  83A1                db      $80+3,$a1
+  3511  03                  db      3
+  3512  A2                  db      $a2
+                    ;       db      $a3,$a3,$a4,$a4,$a4,$a5,$a5,$a5
+  3513  A3A3                db      $a3,$a3
+  3515  83A4                db      $80+3,$a4
+  3517  83A5                db      $80+3,$a5
+                    ;       db      $a1,$a2,$a3,$a4,$a5,$a5,$a2,$a3
+  3519  01                  db      1
+  351A  A1                  db      $a1
+  351B  C205                db      $C0+2,5
+  351D  A2A3A4A5A5          db      $a2,$a3,$a4,$a5,$a5
+                    ;       db      $a4,$a5,$a5,$a0,$a0,$a1,$a2,$a3
+  3522  05                  db      5
+  3523  A0A0A1A2A3          db      $a0,$a0,$a1,$a2,$a3
+                    ;       db      $a4,$a4,$a4,$a5,$a5,$a1,$a2,$a2
+  3528  83A4                db      $80+3,$a4
+  352A  82A5                db      $80+2,$a5
+                    
+                    ; changed last byte of the 4th sequences, so that we can ha:
+                    
+  352C  C30C                db      $C0+3,12
+  352E  A1A2A2A3A3          db      $a1,$a2,$a2,$a3,$a3,$a4,$a4,$a5,$a5,$a6,$a6:
+                    ;       db      $a3,$a3,$a4,$a4,$a5,$a5,$a6,$a6
+                    ;       db      $a6,$a1,$a2,$a2,$a3,$a3,$a4,$a4
+                    ;       db      $a5,$a5,$a6,$a6,$a6,$a1,$a2,$a2
+                    ;       db      $a3,$a3,$a4,$a4,$a5,$a5,$a6,$a6
+                    ;       db      $a6,$a1,$a2,$a2,$a3,$a3,$a4,$a4
+                    ;       db      $a5,$a5,$a6,$a6,$a0,$a0,$a0,$a1
+  353A  13                  db      19
+  353B  A1A2A2A3A3          db      $a1,$a2,$a2,$a3,$a3,$a4,$a4,$a5,$a5,$a6,$a6:
+  3547  A0A0A1              db      $a0,$a0,$a1
+  354A  A2A3A4A4            db      $a2,$a3,$a4,$a4
+                    ;       db      $a2,$a3,$a4,$a4,$a5,$a5,$a5,$a1
+  354E  83A5                db      $80+3,$a5
+  3550  83A1                db      $80+3,$a1
+                    ;       db      $a1,$a1,$a2,$a3,$a3,$a4,$a4,$a4
+  3552  03                  db      3
+  3553  A2A3A3              db      $a2,$a3,$a3
+  3556  83A4                db      $80+3,$a4
+                    ;       db      $a5,$a5,$a5,$a1,$a2,$a3,$a4,$a5
+  3558  83A5                db      $80+3,$a5
+                    
+                    ; changed for 3 sequences of 7
+                    
+  355A  C307                db      $C0+3,7
+  355C  A1A1A2A3A4          db      $a1,$a1,$a2,$a3,$a4,$a5,$a5
+                  ATARI CAMAC Assembler Ver  1.0A  Page  27
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+                    ;       db      $a5,$a2,$a3,$a4,$a5,$a5,$a0,$a0
+                    ;       db      $a1,$a2,$a3,$a4,$a4,$a4,$a5,$a5
+                    
+                    ;HAMC
+                    ;       db      $a3,$a3,$a3,$a0,$a0,$a0,$a4
+  3563  83A3                db      $80+3,$a3
+  3565  83A0                db      $80+3,$a0
+  3567  83A4                db      $80+3,$a4
+                    ;       db      $a4,$a4,$a0,$a0,$a0,$a5,$a5,$a5
+  3569  83A0                db      $80+3,$a0
+  356B  83A5                db      $80+3,$a5
+                    ;       db      $a0,$a0,$a0,$a5,$a5,$a5,$a0,$a0
+  356D  83A0                db      $80+3,$a0
+  356F  83A5                db      $80+3,$a5
+  3571  83A0                db      $80+3,$a0
+                    ;       db      $a0,$a6,$a6,$a6,$a0,$a0,$a8,$a8
+  3573  83A6                db      $80+3,$a6
+  3575  82A0                db      $80+2,$a0
+  3577  83A8                db      $80+3,$a8
+                    ;       db      $a8,$a0,$a0,$a9,$a9,$a0,$a0,$a8
+  3579  35                  db      53
+                    ;       db      $a8,$a0,$a0,$a8,$a8,$a0,$a0,$a7
+                    ;       db      $a7,$a0,$a6,$a6,$a0,$a0,$a6,$a6
+                    ;       db      $a0,$a0,$a5,$a5,$a0,$a0,$a4,$a4
+                    ;       db      $a0,$a3,$a0,$a2,$a0,$a1
+  357A  A0A0A9A9A0          db      $a0,$a0,$a9,$a9,$a0,$a0,$a8
+  3581  A8A0A0A8A8          db      $a8,$a0,$a0,$a8,$a8,$a0,$a0,$a7
+  3589  A7A0A6A6A0          db      $a7,$a0,$a6,$a6,$a0,$a0,$a6,$a6
+  3591  A0A0A5A5A0          db      $a0,$a0,$a5,$a5,$a0,$a0,$a4,$a4
+  3599  A0A3A0A2A0          db      $a0,$a3,$a0,$a2,$a0,$a1
+                    
+                    ;SPRC4
+                    ;       db      $a3,$a4,$a5,$a6,$a5,$a4,$a3,$a4
+                    ;       db      $a5,$a6,$a7,$a6,$a5,$a4,$a3,$a0
+  359F  A3A4A5A6A5          db      $a3,$a4,$a5,$a6,$a5,$a4,$a3,$a4
+  35A7  A5A6A7A6A5          db      $a5,$a6,$a7,$a6,$a5,$a4,$a3,$a0
+                    
+                    ;GRLC3
+                    ;GRLC4
+                    ;PNTC4
+                    ;       db      $a7,$a7,$a7,$a7,$a7,$a7
+                    ;       db      $a7,$a7,$a7,$a7,$a7,$a7,$a7,$a7
+                    ;       db      $a7,$a7,$a7,$a7,$a0,$a0,$a0,$a0
+                    ;       db      $a3,$a4,$a5,$a5,$a5,$a5,$a6,$a6
+                    ;       db      $a7,$a7,$a7,$a7,$a7,$a7,$a7,$a7
+                    ;       db      $a7,$a7,$a7,$a7,$a7,$a7,$a7,$a7
+  35AF  92A7                db      $80+18,$a7
+  35B1  84A0                db      $80+4,$a0
+  35B3  02                  db      2
+  35B4  A3A4                db      $a3,$a4
+  35B6  84A5                db      $80+4,$a5
+  35B8  82A6                db      $80+2,$a6
+  35BA  90A7                db      $80+16,$a7
+                    
+                    
+                    *
+                    *
+                  ATARI CAMAC Assembler Ver  1.0A  Page  28
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+                    ***************************************************
+                    
+                    
+                    ;****
+                    ; WALKING.MAC
+                    ;
+                    
+                    ;
+                    ;       This data came from D:WALKING.SND
+                    ;
+                    ;
+                    ;       This is sound channel 1
+        = 000A      WLKLEN  equ     $000A
+                    ;WLKF1
+                    ;       DB      $23,$24,$25,$26,$28,$2A,$2D,$32,$30,$2E
+  35BC  0A                  db      10
+  35BD  2324252628          DB      $23,$24,$25,$26,$28,$2A,$2D,$32,$30,$2E
+                    
+                    ;****
+                    ; JUMP.MAC
+                    
+                    ;       This data came from D:JUMP.SND
+                    ;
+                    ;       This is sound channel 01
+        = 0030      JMPLEN  EQU     $0030
+                    ;JMPF1
+                    ;       DB      $3E,$3D,$3B,$39,$37,$36,$37,$39
+                    
+                    ; last byte of 4th sequence changed
+                    
+  35C7  C40A                db      $C0+4,10
+  35C9  3E3D3B3937          DB      $3E,$3D,$3B,$39,$37,$36,$37,$39
+                    ;       DB      $3B,$3D,$3E,$3D,$3B,$39,$37,$36
+  35D1  3B3D                DB      $3B,$3D
+                    ;       DB      $37,$39,$3B,$3D,$3E,$3D,$3B,$39
+                    ;       DB      $37,$36,$37,$39,$3B,$3D,$3E,$3D
+                    ;       DB      $3B,$39,$37,$36,$37,$39,$3B,$3C
+                    ;       DB      $3D,$3E,$40,$47,$53,$63,$72,$72
+  35D3  08                  db      8
+  35D4  3D3E404753          DB      $3D,$3E,$40,$47,$53,$63,$72,$72
+                    
+                    ;****
+                    ; srivet.MAC
+                    ;
+                    
+                    ;       This data came from D:srivet.SND
+                    ;       This is sound channel 01
+                    ;
+        = 000F      RIVLEN  equ     15
+                    ;RIVF1
+                    ;       DB      0,0,0,0,0,0,0,0,0,0,0,0,68,68,68
+  35DC  8C00                db      $80+12,0
+  35DE  8344                db      $80+3,68
+                    
+                    ;RIVD1
+                    ;       DB      11,11
+                    ;       DB      11,11,11,11,11,11,11,11,11,28,17,6,5
+                  ATARI CAMAC Assembler Ver  1.0A  Page  29
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+  35E0  8B0B                db      $80+11,11
+  35E2  04                  db      4
+  35E3  1C110605            db      28,17,6,5
+                    
+                    ;RIVS1
+                    ;       DB      0,0,0,0,0,0,0,0,0,0,0,0,7,1,1
+  35E7  8C00                db      $80+12,0
+  35E9  03                  db      3
+  35EA  070101              db      7,1,1
+                    
+                            
+                    ;RIVF2
+                    ;       DB      217,182,217,182,217,182
+                    ;       DB      217,182,217,182,217,182,91,91,91
+  35ED  C602                db      $C0+6,2
+  35EF  D9B6                db      217,182
+  35F1  835B                db      $80+3,91
+                    
+                    ;RIVD2
+                    ;       DB      11,11,11,11
+                    ;       DB      11,11,11,11,11,11,11,11,34,6,5
+  35F3  8C0B                db      $80+12,11
+  35F5  03                  db      3
+  35F6  220605              db      34,6,5
+                    
+                    ;RIVS2
+                    ;       DB      5,5,5,5,5,5,5,5,5,5,5,5,7,1,1
+  35F9  8C05                db      $80+12,5
+  35FB  03                  db      3
+  35FC  070101              db      7,1,1
+                    
+                    
+                    ;****
+                    ; MARCHTWO.MAC
+                    ;
+                    
+                    ;       This data came from D:MARCHTWO.SND
+                    ;
+                    ;
+                    ;       This is sound channel 01
+        = 004A      MR2LEN  equ     $004A
+                    ;MR2F2
+                    ;       DB      $5B,$5B
+                    ;       DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$51
+  35FF  895B                db      $80+9,$5b
+  3601  8951                db      $80+9,$51
+                    ;       DB      $51,$51,$51,$51,$51,$51,$51,$51
+                    ;       DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+  3603  895B                db      $80+9,$5b
+                    ;       DB      $5B,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$88,$88
+  3605  956C                db      $80+21,$6c
+  3607  9A88                db      $80+26,$88
+                    
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                  ATARI CAMAC Assembler Ver  1.0A  Page  30
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    
+                    ;****
+                    ; MARCHONE.MAC
+                    ;
+                    
+                    ;       This data came from D:MARCHONE.SND
+                    ;
+                    ;       This is sound channel 01
+        = 001D      MR1LEN  equ     $001D
+                    ;MR1F2
+                    ;       DB      $6C,$6C,$6C,$6C,$6C
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$6D,$6E
+                    ;       DB      $70,$88,$88,$88,$88,$88,$88,$88
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+  3609  8B6C                db      $80+11,$6c
+  360B  03                  db      3
+  360C  6D6E70              db      $6d,$6e,$70
+  360F  8F88                db      $80+15,$88
+                    
+                    ;****
+                    ; ATTACK.MAC
+                    ;
+                    
+                    ;       This data came from D:ATTACK.SND
+                    ;
+                    ;       This is sound channel 01
+        = 00B6      ATKLEN  EQU     $00B6
+                    ;ATKF2
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$5B,$5B
+  3611  8C6C                db      $80+12,$6c
+  3613  8C5B                db      $80+12,$5b
+                    ;       DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+                    ;       DB      $5B,$5B,$6C,$6C,$6C,$6C,$6C,$6C
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$5B,$5B
+                    ;       DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+                    ;       DB      $5B,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  3615  8C6C                db      $80+12,$6c
+  3617  8B5B                db      $80+11,$5b
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$88,$88,$88
+  3619  AC6C                db      $80+44,$6c
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    ;       DB      $88,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  361B  8C88                db      $80+12,$88
+  361D  8C6C                db      $80+12,$6c
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$88,$88,$88
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    ;       DB      $88,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  361F  8C88                db      $80+12,$88
+  3621  8B6C                db      $80+11,$6c
+                    ;       DB      $6C,$6C,$6C,$6C,$88,$88,$88,$88
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                  ATARI CAMAC Assembler Ver  1.0A  Page  31
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+  3623  AC88                db      $80+44,$88
+                    
+                    
+                    
+                    ;****
+                    ; HAMMER.MAC
+                    ;
+                    
+                    ;       This data came from D:HAMMER.SND
+                    ;
+                    
+                    
+        = 0000      CH1OFF  EQU     0               ;channel offsets
+        = 0002      CH2OFF  EQU     2
+        = 0004      CH3OFF  EQU     4
+        = 0006      CH4OFF  EQU     6
+                    ;
+        = 0045      HAMLEN  equ     $0045           ;sound table length
+        = 00FF      hamle2  =       low [-1]
+        = 00F4      hamle3  =       low [-12]
+        = 00EF      hamle4  =       low [-17]
+                    ;HAMF
+                    ;       db      $cc,$cc,$cc,$cc,$cc,$cc,$b6,$b6
+  3625  86CC                db      $80+6,$cc
+  3627  83B6                db      $80+3,$b6
+                    ;       db      $b6,$cc,$cc,$cc,$a2,$a2,$a2,$cc
+  3629  83CC                db      $80+3,$cc
+  362B  83A2                db      $80+3,$a2
+  362D  83CC                db      $80+3,$cc
+                    ;       db      $cc,$cc,$99,$99,$99,$99,$cc,$cc
+  362F  8499                db      $80+4,$99
+  3631  82CC                db      $80+2,$cc
+                    ;       db      $88,$88,$88,$cc,$cc,$80,$80,$80
+  3633  8388                db      $80+3,$88
+  3635  82CC                db      $80+2,$cc
+  3637  8380                db      $80+3,$80
+                    ;       db      $cc,$cc,$79,$79,$cc,$cc,$72,$72
+                    ;       db      $cc,$cc,$6c,$6c,$cc,$cc,$66,$66
+                    ;       db      $cc,$60,$60,$cc,$cc,$5b,$5b,$5b
+                    ;       db      $51,$55,$55,$51,$51,$51,$51,$51
+  3639  1B                  db      27
+  363A  CCCC7979CC          db      $cc,$cc,$79,$79,$cc,$cc,$72,$72
+  3642  CCCC6C6CCC          db      $cc,$cc,$6c,$6c,$cc,$cc,$66,$66
+  364A  CC6060CCCC          db      $cc,$60,$60,$cc,$cc,$5b,$5b,$5b
+  3652  515555              db      $51,$55,$55
+  3655  8551                db      $80+5,$51
+                    ;       db      $4c,$51,$48,$51,$44
+  3657  05                  db      5
+  3658  4C51485144          db      $4c,$51,$48,$51,$44
+                    
+                    ;****
+                    ; STAMP.MAC
+                    ;
+                  ATARI CAMAC Assembler Ver  1.0A  Page  32
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+                    
+                    ;       This data came from D:STAMP.SND
+                    ;
+                    ;       This is sound channel 04
+        = 0018      STPLEN  equ     $0018
+                    
+        = 0066      STPF4   EQU     $66
+                    
+                    ;****
+                    ; FALL.MAC
+                    ;
+                    
+                    ;       This data came from D:FALL.SND
+                    ;
+                    
+                    ;****
+                    ; GRIN.MAC
+                    ;
+                    
+                    ;       This data came from D:GRIN.SND
+                    ;
+                    ;       This is sound channel 03
+                    ;
+        = 0011      GRNLEN  EQU     $0011
+                    ;GRNF3
+                    ;       db      $08,$08,$08,$08,$08,$08,$08,$08
+                    ;       db      $08,$08,$08,$08,$08,$08,$08,$08
+                    ;       db      $08
+  365D  9108                db      $80+17,$08
+                    
+                    ;GRNC3
+                    ;       db      $48,$48,$48,$48,$48,$48,$48,$48
+                    ;       db      $48,$48,$48,$48,$48,$48,$48,$48
+                    ;       db      $48
+  365F  9148                db      $80+17,$48
+                    
+                    ;****
+                    ; GIRL1.MAC
+                    ;
+                    
+                    ;       This data came from D:GIRL1.SND
+                    ;
+                    ;       This is sound channel 03
+        = 0004      GRLLEN  equ     4
+                    ;       This is sound channel 04
+                    
+                    ;GRLF3
+                    ;       DB      45,35,40,45
+                    
+                    ;GRLF4
+                    ;       DB      52,45,47,53
+                    ;GRLD3
+                    ;GRLD4
+                    ;       DB      16,12,4,5
+                    ;GRLS3
+                    ;GRLS4
+                    ;       DB      10,5,1,2
+                  ATARI CAMAC Assembler Ver  1.0A  Page  33
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+  3661  1F                  db      31
+  3662  2D23282D34          db      45,35,40,45,52,45,47,53
+  366A  100C04050A          db      16,12,4,5,10,5,1,2
+                    
+                    ;****
+                    ; SPRING.MAC
+                    ;
+                    
+                    ;       This data came from D:SPRING.SND
+                    ;
+                    ;       This is sound channel 02
+        = 000F      SPRLEN  equ     $000F
+                    ;SPRF4
+                    ;       DB      $16,$1B,$23,$2D,$3B,$4B,$64
+                    ;       DB      $1D,$20,$28,$2F,$39,$48,$56,$6D
+  3672  161B232D3B          DB      $16,$1B,$23,$2D,$3B,$4B,$64
+  3679  1D20282F39          DB      $1D,$20,$28,$2F,$39,$48,$56,$6D
+                    
+                    ;****
+                    ; POINTS.MAC
+                    ;
+                    
+                    ;       This data came from D:POINTS.SND
+                    ;
+                    ;       This is sound channel 01
+        = 002D      PNTLEN  equ     $002D
+                    ;PNTF4
+                    ;       DB      $32,$33,$32,$31,$32
+                    ;       DB      $33,$32,$31,$32,$33,$32,$31,$32
+                    ;       DB      $33,$32,$31,$32,$32,$28,$28,$28
+  3681  C404                db      $C0+4,4
+  3683  32333231            DB      $32,$33,$32,$31
+  3687  8232                db      $80+2,$32
+  3689  8528                db      $80+5,$28
+                    ;       DB      $28,$28,$29,$28,$27,$28,$28,$27
+                    ;       DB      $28,$29,$27,$28,$34,$35,$34,$34
+                    ;       DB      $35,$3C,$3D,$3C,$44,$43,$44,$44
+  368B  16                  db      22
+  368C  2928272828          DB      $29,$28,$27,$28,$28,$27
+  3692  2829272834          DB      $28,$29,$27,$28,$34,$35,$34,$34
+  369A  353C3D3C44          DB      $35,$3C,$3D,$3C,$44,$43,$44,$44
+                    
+                    
+  36A2  00                  db      0               ;END UNPACK PROCESS
+                    
+  36A3              rotsda
+        = 5000      ROTC1   =       SBUF + $0
+        = 5090      ROTF1   =       SBUF + $90
+                    
+                    ;****
+                    ; ROTATE.MAC
+                    ;
+                    
+                    ;       This data came from D:ROTATE.SND
+                    ;
+                    ;       This is sound channel 01
+        = 0090      ROTLEN  equ     $0090
+                  ATARI CAMAC Assembler Ver  1.0A  Page  34
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+                    ;ROTC1
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  36A3  BFA9                DB      $80+63,$a9
+  36A5  BFA9                DB      $80+63,$a9
+  36A7  92A9                DB      $80+18,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;       db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    ;ROTF1
+                    ;       DB      $88,$88,$88,$88
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    ;       DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    ;       DB      $88,$88,$88,$88,$B6,$B6,$B6,$B6
+  36A9  9888                db      $80+24,$88
+  36AB  93B6                db      $80+19,$b6
+                    ;       DB      $B6,$B6,$B6,$B6,$B6,$B6,$B6,$B6
+                    ;       DB      $B6,$B6,$B6,$B6,$B6,$B6,$B6,$5B
+                    ;       DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+                    ;       DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+  36AD  915B                db      $80+17,$5b
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+                    ;       DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$48
+  36AF  8F6C                db      $80+15,$6c
+  36B1  8248                db      $80+2,$48
+                    ;       DB      $48,$80,$80,$80,$44,$44,$79,$79
+  36B3  8380                db      $80+3,$80
+  36B5  8244                db      $80+2,$44
+  36B7  8379                db      $80+3,$79
+                    ;       DB      $79,$40,$40,$72,$72,$72,$3C,$3C
+  36B9  8240                db      $80+2,$40
+  36BB  8372                db      $80+3,$72
+  36BD  823C                db      $80+2,$3c
+                    ;       DB      $6C,$6C,$39,$39,$66,$66,$66,$35
+  36BF  826C                db      $80+2,$6c
+  36C1  8239                db      $80+2,$39
+  36C3  8366                db      $80+3,$66
+  36C5  8235                db      $80+2,$35
+                    ;       DB      $35,$5B,$5B,$5B
+  36C7  835B                db      $80+3,$5b
+                    ;       DB      $32,$32,$55,$55,$55,$2F,$2F,$51
+  36C9  8232                db      $80+2,$32
+  36CB  8355                db      $80+3,$55
+  36CD  822F                db      $80+2,$2f
+                  ATARI CAMAC Assembler Ver  1.0A  Page  35
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+  36CF  8351                db      $80+3,$51
+                    ;       DB      $51,$51,$2D,$2D,$4C,$4C,$4C,$2A
+  36D1  822D                db      $80+2,$2d
+  36D3  834C                db      $80+3,$4c
+  36D5  822A                db      $80+2,$2a
+                    ;       DB      $2A,$48,$48,$48,$28,$28,$44,$44
+  36D7  8348                db      $80+3,$48
+  36D9  8228                db      $80+2,$28
+  36DB  8344                db      $80+3,$44
+                    ;       DB      $44,$25,$25,$3F,$3F,$3F,$23,$23
+  36DD  8225                db      $80+2,$25
+  36DF  833F                db      $80+3,$3f
+  36E1  8223                db      $80+2,$23
+                    ;       DB      $3C,$3C,$3C,$2D,$2D,$3C,$3C,$3C
+  36E3  833C                db      $80+3,$3c
+  36E5  822D                db      $80+2,$2d
+  36E7  833C                db      $80+3,$3c
+                    
+                    
+  36E9  00                  db      0               ; end unpacking
+                    *******************************************************
+                    *  pointer table for muspr
+                    *
+                    
+  36EA              howa1
+  36EA  5850                dw      howf1
+  36EC  0050                dw      howc1
+  36EE  6450                dw      howd1
+  36F0  7050                dw      hows1
+  36F2              howa2
+  36F2  7C50                dw      howf2
+  36F4  0C50                dw      howc2
+  36F6  8850                dw      howd2
+  36F8  9450                dw      hows2
+                    
+                    
+  36FA              riva1
+  36FA  6452                dw      rivf1
+  36FC  6A50                dw      rivc1
+  36FE  7352                dw      rivd1
+  3700  8252                dw      rivs1
+  3702              riva2
+  3702  9152                dw      rivf2
+  3704  7950                dw      rivc2
+  3706  A052                dw      rivd2
+  3708  AF52                dw      rivs2
+                    
+                    
+  370A              grla3
+  370A  4254                dw      grlf3
+  370C  FC51                dw      grlc3
+  370E  4A54                dw      grld3
+  3710  4E54                dw      grls3
+  3712              grla4
+  3712  4654                dw      grlf4
+  3714  FC51                dw      grlc4
+  3716  4A54                dw      grld4
+                  ATARI CAMAC Assembler Ver  1.0A  Page  36
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+  3718  4E54                dw      grls4
+                    
+                    ********************************
+                    * jump table for sounds routine*
+                    ********************************
+                    
+  371A              sjtab
+  371A  65                  db      voice - intro
+  371B  65                  db      voice - intro
+  371C  B9                  db      girl1 - intro
+  371D  65                  db      voice - intro
+  371E  91                  db      fall - intro
+  371F  65                  db      voice - intro
+  3720  CF                  db      hammer - intro
+  3721  65                  db      voice - intro
+  3722  65                  db      voice - intro
+  3723  65                  db      voice - intro
+  3724  65                  db      voice - intro
+  3725  4F                  db      srivet - intro
+  3726  65                  db      voice - intro
+  3727  65                  db      voice - intro
+  3728  39                  db      howmuch - intro
+  3729  00                  db      intro - intro
+                    
+  372A              fh
+  372A  54                  db      high pntf4
+  372B  54                  db      high sprf4
+  372C  00                  db      0               ;girl
+  372D  54                  db      high grnf3
+  372E  00                  db      0               ;fall
+  372F  50                  db      high stpf3
+  3730  00                  db      high 0          ;hammer
+  3731  53                  db      high atkf2
+  3732  53                  db      high mr1f2
+  3733  52                  db      high mr2f2
+  3734  50                  db      high rotf1
+  3735  00                  db      0               ;srivet
+  3736  52                  db      high jmpf1
+  3737  52                  db      high wlkf1
+  3738  00                  db      0               ;howmuch
+  3739  00                  db      0               ;intro
+                    
+  373A              fl
+  373A  61                  db      low pntf4
+  373B  52                  db      low sprf4
+  373C  00                  db      0               ;girl
+  373D  20                  db      low grnf3
+  373E  00                  db      0               ;fall
+  373F  00                  db      low stpf3
+  3740  00                  db      0               ;hammer
+  3741  25                  db      low atkf2
+  3742  08                  db      low mr1f2
+  3743  BE                  db      low mr2f2
+  3744  90                  db      low rotf1
+  3745  00                  db      0               ;srivet
+  3746  34                  db      low jmpf1
+  3747  2A                  db      low wlkf1
+                  ATARI CAMAC Assembler Ver  1.0A  Page  37
+                                                       D1:CSNDTBL.        
+  Miscellaneous subroutines                         
+
+  3748  00                  db      0               ;howmuch
+  3749  00                  db      0               ;intro
+                    
+  374A              cnh
+  374A  51                  db      high pntc4
+  374B  51                  db      high sprc4
+  374C  00                  db      0               ;girl
+  374D  54                  db      high grnc3
+  374E  00                  db      0               ;fall
+  374F  50                  db      high stpc3
+  3750  00                  db      0               ;hammer
+  3751  50                  db      high atkc2
+  3752  50                  db      high mr1c2
+  3753  50                  db      high mr2c2
+  3754  50                  db      high rotc1
+  3755  00                  db      0               ;srivet
+  3756  50                  db      high jmpc1
+  3757  50                  db      high wlkc1
+  3758  00                  db      0               ;howmuch
+  3759  00                  db      0               ;intro
+                    
+  375A              cnl
+  375A  FC                  db      low pntc4
+  375B  EC                  db      low sprc4
+  375C  00                  db      0               ;girl
+  375D  31                  db      low grnc3
+  375E  00                  db      0               ;fall
+  375F  18                  db      low stpc3
+  3760  00                  db      0               ;hammer
+  3761  F1                  db      low atkc2
+  3762  D3                  db      low mr1c2
+  3763  89                  db      low mr2c2
+  3764  00                  db      low rotc1
+  3765  00                  db      0               ;srivet
+  3766  3A                  db      low jmpc1
+  3767  30                  db      low wlkc1
+  3768  00                  db      0               ;howmuch
+  3769  00                  db      0               ;intro
+                    
+  376A              chnum                           ;biases chan #4=6; #3=4; #2:
+  376A  06                  db      6
+  376B  06                  db      6
+  376C  00                  db      0               ;girl
+  376D  04                  db      4
+  376E  00                  db      0               ;fall
+  376F  04                  db      4
+  3770  00                  db      0               ;hammer
+  3771  02                  db      2
+  3772  02                  db      2
+  3773  02                  db      2
+  3774  00                  db      0
+  3775  00                  db      0               ;srivet
+  3776  00                  db      0
+  3777  00                  db      0
+  3778  00                  db      0               ;howmuch
+  3779  00                  db      0               ;intro
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page  38
+                                                       D1:CSOUNDS.        
+  Miscellaneous subroutines                         
+
+                            include d:worktabl
+                    **********************************
+                    * WORK TABLES FOR MUSIC ROUTINES *
+                    *         DONKEY KONG            *
+                    * should be contiguously defined *
+                    **********************************
+                    
+  377A              HAMIX                                   ;hammer index for c:
+  377A  00          MSTCTR  DB      0                       ;sound flag ctr
+                    
+                    
+                                                            ;global index for s:
+  377B  00          GLOBIX  DB      0                       ;used positions: 0,:
+  377C  00                  DB      0                       ;MUSPR has processe:
+  377D  00                  DB      0                       ;for this channel o:
+  377E  00                  DB      0
+  377F  00                  DB      0
+  3780  00                  DB      0
+  3781  00                  DB      0
+  3782  00                  DB      0
+                                                            
+  3783  = 0001      musfs   ds      1
+  3784  = 0007      muscs   ds      7
+                    
+  378B  = 0001      suslns  ds      1
+  378C  = 0007      totdrs  ds      7
+                    
+                    *******************************************************
+                    *
+                    *  RAM VARIABLES
+                    *
+  3793  00          INTRX1  DB      0
+  3794  00          INTRX2  DB      0
+  3795  00          vtime   DB      0
+  3796  1B          MUSIC2  DB      $1B
+  3797  16          FALF3   DB      $16
+  3798  00          falc3   db      0
+  3799  11          GRNCNT  DB      $11
+                    
+  379A                      end     $3100
+
+
+  no ERRORs,  213 Labels, $8378 free.

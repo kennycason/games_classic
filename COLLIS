@@ -1,0 +1,115 @@
+	subttl	'Collision Detection'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;			Collision Detection			;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; COLLIS - Detect collision between friendly and enemy objects
+; Passed:
+;	vtmp  = start_x
+;	vtmph = start_y
+;	vtmp1 = x_size
+;	vtmp1h= y_size
+; Returns:
+;	Cf zero ==> no collision
+;	Cf set  ==> A = object# (1..NObjs-1) that the friendly object
+;		    collided with.
+; Uses: AXY, vtmp*
+; Imports: xyoffs[], xysiz[], cxh[], cyh[], cmode[], cstat[],
+;
+collis	local
+	clc				; vtmp1 += vtmp
+	lda	vtmp
+	adc	vtmp1
+	sta	vtmp1
+
+	clc				; vtmp1h += vtmph
+	lda	vtmph
+	adc	vtmp1h
+	sta	vtmp1h
+
+	ldi	vtmp2,nobjs-1		; setup obj count
+:loop	ldy	vtmp2			; is this obj alive and visible?
+	lda	cstat,y
+	bmi	:punt			; if object is dead, then can't be killed by it...
+	and	#CTALIV + CTUNDR
+	cmp	#CTALIV
+	bne	:punt			; no, so ignore it...
+
+;
+; get critter x,y coords
+;
+	lda	cxh,y			; vtmp5, vtmp5h = x_pos, y_pos
+	sta	vtmp5
+	lda	cyh,y
+	sta	vtmp5h
+
+	lda	cmode,y			; y = cmode[y] << 1
+	asl	a
+	tay
+
+	clc				; vtmp5 += xyoffs[y]
+	lda	xyoffs,y
+	adc	vtmp5
+	sta	vtmp5
+
+	clc				; vtmp5h += xyoffs[y + 1]
+	lda	xyoffs+1,y
+	adc	vtmp5h
+	sta	vtmp5h
+
+	lda	xysiz,y			; vtmp4h = xysiz[y]
+	sta	vtmp4h
+
+	clc				; a = vtmp5h + xysiz[1 + y]
+	lda	vtmp5h
+	adc	xysiz+1,y
+
+;
+; check y coords for overlap
+;
+	cmp	vtmph
+	blt	:1
+	cmp	vtmp1h
+	blt	:win1
+
+:1	lda	vtmp5h
+	cmp	vtmph
+	blt	:punt
+	cmp	vtmp1h
+	bge	:punt
+
+;
+; check x coords for overlap
+;
+:win1	clc				; a = vtmp5 + vtmp4h
+	lda	vtmp4h
+	adc	vtmp5
+
+	cmp	vtmp
+	blt	:3
+	cmp	vtmp1
+	blt	:win2
+
+:3	lda	vtmp5
+	cmp	vtmp
+	blt	:punt
+	cmp	vtmp1
+	bge	:punt
+
+;
+; Found a collision...
+;
+:win2	lda	vtmp2			; A = critter#
+	sec				; Cf = 1
+	rts				; tell caller about the bad news
+
+;
+; (continue loop)
+;
+:punt	dec	vtmp2			; -- critter table index
+	bne	:loop			; more critters to check
+	clc				; no collisions
+	rts

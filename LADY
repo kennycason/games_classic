@@ -1,0 +1,43 @@
+ulady	local
+	ldx	curscr
+	lda	enable,x
+	bpl	:r
+	assert	enlady = $80
+
+;
+; draw/undraw 'HELP!' font
+;
+	lda	clock
+	cmp	#$80-5			; arbitrary clock point
+	beq	:2
+	cmp	#$80+40			; last for 45 jiffies....
+	bne	:1
+
+:2	clc				; x,y = 'help' x,y position
+	lda	ladyx
+	adc	#:helpx
+	tax
+	clc
+	lda	ladyy
+	adc	#:helpy
+	tay
+	dldi	src,help
+	lda	clock
+	bpl	:3
+	jsr	clear
+	jmp	:1
+:3	jsr	draw
+
+;
+; shift the lady's font every four seconds or so
+;
+:1	lda	clock
+	bne	:r
+	lda	random
+	and	#1
+	tax
+	tldx	src,:lady
+	ldx	ladyx
+	ldy	ladyy
+	jsr	cldraw
+:r	rts

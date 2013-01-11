@@ -1,0 +1,678 @@
+	subttl	'Header equates'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                       ;;
+;;             Donkey Kong global header		 ;;
+;;                                                       ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;
+; Bases for various sections of memory
+;
+
+zpbase	=	$80		; base for zero-page usage
+	if	not rom
+membas	=	$0000		; base for random mem usage
+gbase	=	membas+$2100	; base for ~8K of graphics mem
+codbas	=	$8000		; base for Ram devo
+garbage	=	$e000		; at least 1 page of writable scratch mem
+	else
+membas	=	$0000		; base for random mem usage
+gbase	=	$2100		; base for ~8K of graphics mem
+codbas	=	$8000		; base for 16K cartridge
+garbage	=	$e000		; at least 1 page of writable scratch mem
+	endif
+
+gsize	=	8*1024		; size of graphics mem
+shfont	=	membas+$400	; base for shifted fonts
+revmsk	=	membas+$d00	; Byte mirroring table (reverse order of bits)
+glob	=	membas+$0e00	; base for globals
+pmb	=	membas+$1000	; base for Player/Missile register
+lmap	=	membas+$1800	; base for 3 pages of line-map
+pfmsk	=	membas+$1b00	; base for 1 page of pixel masks
+sndbuf	=	membas+$1c00	; 5 pages for unpacking sound tables
+
+addrl	=	pmb			; scanline address table
+addrh	=	pmb+$100
+dbase	=	pmb+$200		; display list
+mis	=	pmb+$300		; missiles
+pl0	=	pmb+$400		;  and players
+pl1	=	pmb+$500
+pl2	=	pmb+$600
+pl3	=	pmb+$700
+
+lmapgs	=	41			; size of per-rack constant area
+lmapwid	=	26			; width of lmap line in segments
+nlmapln	=	6			; number of lmap lines
+lmapsiz	=	lmapwid*nlmapln		; size of an lmap entry
+lmapda	=	lmap			; LMAPGS bytes for per-rack constants
+lmapi	=	lmap+lmapgs		; magic girder bits
+lmaph	=	lmapi+lmapsiz		; height
+lmapl	=	lmaph+lmapsiz		; ladder destination
+lmapc	=	lmapl+lmapsiz		; critter in segment
+	assert	lmapc+lmapsiz < pfmsk
+	eject
+	subttl	'Zero-page usage'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                      ;;
+;;		    Zero-Page usage			;;
+;;                                                      ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	org	zpbase
+tmp	ds	2		; Foreground temps
+tmp1	ds	2
+tmp2	ds	2
+tmp3	ds	2
+tmp4	ds	2
+
+vtmp	ds	2		; VBL temps
+vtmp1	ds	2
+vtmp2	ds	2
+vtmp3	ds	2
+vtmp4	ds	2
+vtmp5	ds	2
+
+tmph	=	tmp+1		; addrs of high bytes of temps
+tmp1h	=	tmp1+1
+tmp2h	=	tmp2+1
+tmp3h	=	tmp3+1
+tmp4h	=	tmp4+1
+
+vtmph	=	vtmp+1
+vtmp1h	=	vtmp1+1
+vtmp2h	=	vtmp2+1
+vtmp3h	=	vtmp3+1
+vtmp4h	=	vtmp4+1
+vtmp5h	=	vtmp5+1
+
+ztemp1	ds	2		; cartoon temp
+ztemp2	ds	2		; cartoon temp
+
+vsem	ds	1		; VBL mutual exclusion semaphore
+animon	ds	1		; Animation vbl switch
+anivec	ds	2		; Animation vector
+gameon	ds	1		; Game vbl switch
+
+alivep	ds	1		; positive ==> jumpman is alive
+ptxl	ds	1		; fractional jumpman X position
+ptxh	ds	1		; integer jumpman X position
+ptyl	ds	1		; fractional jumpman Y position
+ptyh	ds	1		; integer jumpman Y position
+
+bcfrac	ds	1		; bonus clock jiffy counter
+keydb	ds	1		; pause key debounce jiffy counter
+
+snmien	ds	1		; NMIEN fake shadow
+ssizem	ds	1		; SIZEM fake shadow
+
+mdonep	ds	1		; sound effects done-P
+
+dlicnt	ds	1		; DLI counter.  Zeroed early in VBL
+
+otrig	ds	1		; non-zero ==> joystick trigger invalid
+
+lstupd	ds	1		; last object updated (for Sched() use)
+ccbits	ds	1		; copy of CBITS[i] for critter update
+ccstat	ds	1		; copy of CSTAT[i] likewise
+ccrit	ds	1		; what critter# is being updated
+
+;
+; DRAW zero-page usage
+;
+yi	ds	1		; current line number
+xi	ds	1		; horz index
+xisav	ds	1		; (permanent) starting horz index
+hei	ds	1		; height in lines
+rn	ds	1		; number of bytes per line to write
+rinc	ds	1		; number of bytes per line to skip
+dest	ds	2		; destination pointer
+src	ds	2		; source base-pointer
+si	ds	1		; index into source
+shcnt	ds	1		; right-shift count
+shbits	ds	1		; previous bits, for right-shifting
+
+;
+; VDRAW zero-page usage
+;
+vyi	ds	1		; current line number
+vxi	ds	1		; horz index
+vxisav	ds	1		; (permanent) starting horz index
+vhei	ds	1		; height in lines
+vrn	ds	1		; number of bytes per line to write
+vrinc	ds	1		; number of bytes per line to skip
+vdest	ds	2		; destination pointer
+vsrc	ds	2		; source base-pointer
+vsi	ds	1		; index into source
+vzpsav	ds	4		; four bytes for saving screen bytes
+
+;
+; zeropage for sounds
+;
+frq	ds	2		; addr of current music freq table
+cnt	ds	2		; addr of current music control table
+length	ds	2		; addr of table for length of current note
+sustain	ds	2		; addr of table for sustain of current note
+stmp	ds	2		;temp ptr for sound routines
+
+oldclk	ds	1
+vdone	ds	1
+	assert	* < $100
+	eject
+	subttl	'Global variables'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                      ;;
+;;		     Global Variables			;;
+;;                                                      ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	org	glob
+;
+; These get zeroed at init-time by some code in Main()
+;
+diff	ds	1		; selected difficulty level [0..4]
+nplyrs	ds	1		; selected number of players [0,1]
+hscore	ds	6		; BCD of high score
+
+
+;
+; Per-player state
+; Locations from USR to PLAYED are swapped with USR1, for the two-player
+;  mode of the game.
+;
+usr	ds	1		; player number [0,1]
+cusr	ds	1		; player text [0..2]
+cdiff	ds	1		; current difficulty level [0..4]
+clevel	ds	1		; current level, sticks at 255
+rackn	ds	1		; current rack number [0..3]
+curlvl	ds	1		; private, maintained by NXTRAK
+nlives	ds	1		; number of lives left
+cscore	ds	6		; BCD of player's score
+nxtlif	ds	6		; BCD of next bonus-life threshold
+played	ds	1		; 1 ==> not played any rounds yet
+usrlen	=	*-usr		; length of per-player area
+
+;
+; alternate state area (for the other player)
+; (Must be positioned immediately after the first player's database)
+;
+usr1	=	*
+	ds	usrlen
+
+rzerob	=	*		; base of mem to zero (per-round)
+
+;
+; these variables are zeroed at cart init time and also at round init time
+;
+seqflg	ds	1		; cartoon sequence number
+pausep	ds	1		; game pause switch, 1 ==> paused
+
+globlen	=	*-glob		; size of zeroed global area
+
+;
+; These variables get zeroed just before the start of every round
+;
+	ds	2		; leading zeroes for bclock
+bclock	ds	4
+ncrit	ds	1		; total number of creature currently alive
+nba	ds	1		; total number of barrels alive
+nfth	ds	1		; total number of fire-creatures alive
+cdba	ds	1		; (jiffy) creation delay for barrels
+cdfth	ds	1		; (bonus ticker) creation delay for fire-creatures
+cdspr	ds	1		; (jiffy) creation delay for springs
+cdbsn	ds	1		; (jiffy) creation delay for sandpiles
+sprwher	ds	1		; where to create the next spring
+spawfb	ds	1		; flag to spawn a fireball [ramps only]
+bacnt	ds	1		; total barrels already created this round
+
+pstate	ds	1		; Protagonist's state
+ptlev	ds	1		; Protagonist's level (always starts at zero...)
+ptfont	ds	1		; Protagonist's default font
+hstate	ds	1		; Hammer state (init = Off(!))
+fstate	ds	1		; Firebarrel state
+lstate	ds	1		; Lady's state
+lfont	ds	1		; Lady's current font (iff enable[curscr]&ENLADY != 0)
+rackdn	ds	1		; non-zero ==> rack finished succesfully
+slstate	ds	1		; non-zero ==> show '2UP' on scoreline
+
+;
+; floating-score state
+;
+fscore	ds	1		; floating-score state, and timer (nonzero = on, negative ==> redraw)
+fscorx	ds	1		; X and Y position of floating score
+fscory	ds	1
+fscort	ds	1		; floating score type (SC100, etc)
+clock	ds	1		; gametime jiffy counter
+
+;
+; Kong's state
+;
+kstate	ds	1		; state info for Kong animation
+kongb	ds	1		; Facing-font bits
+kcrit	ds	1		; Magic_bits for barrel Kong is about to create
+endrlen	=	*-rzerob	; # bytes to clobber at round-init time
+
+;
+; The rest of these aren't automatically cleared at all
+;
+curscr	ds	1		; current screen# (NOT rack#)
+btimer	ds	1		; bonus clock counter
+
+;
+; Protagonist state vars, et al
+;
+ptseg	ds	1		; current lmap segment#
+ptolds	ds	1		; "previous" lmap segment#
+ptjlev	ds	1		; starting height of jump
+ptdly	ds	1		; random delays
+ptmode	ds	1		; random sub-states
+ptyvel	ds	2		; current Y-velocity (16 bits signed)
+ptjdir	ds	1		; jump direction (JYLF | LYRT)
+ptjcnt	ds	1		; counter for #objects jumped-over
+ptoldd	ds	1		; Pt facing direction (not really "old")
+ptoldy	ds	1		; Y-position at previous PtDraw()
+ptoldf	ds	1		; PtFont at previous PtDraw()
+
+;
+; Hammer
+htimer	ds	1		; btimer value when hammer will go away
+hcnt	ds	1		; jiffy counter for up/down swing cycle
+
+;
+; Firebarrel
+ftimer	ds	1		; jiffy counter: when to switch fonts
+
+;
+; conveyerbelt timer & direction
+ctimer	ds	1		; value of BTimer for next reversal
+cdir	ds	1		; direction of cbelt at level 1
+
+;
+; Kong
+ktimer	ds	1		; jiffy counter for state switching
+
+;
+; Lady
+ltimer	ds	1		; jiffy counter: when to switch fonts
+
+;
+; Explosion effect
+;
+xplods	ds	1		; counter for explosion state
+xplodt	ds	1		; jiffy counter for explosion animation
+xplodx	ds	1		; base x_position for explosion
+xplody	ds	1		; base y_position for explosion
+
+;
+; Randoms
+;
+rivcnt	ds	1		; rivits left
+umovep	ds	1		; Sched(), 1 ==> something's moved
+updcnt	ds	1		; Sched(), critter update count
+
+;
+; Global variables used by cartoons
+;
+Kongi	ds	1
+kongmx	ds	1
+
+Nellx	ds	1		; Nell x position
+Nelly	ds	1		; Nell y position
+Nelli	ds	1		; Nell image number
+
+Lady1	ds	1		; Top of ladders
+Lady2	ds	1		; Bottom of ladders
+Ladx1	ds	1		; Left Ladder
+Ladx2	ds	1		; Right Ladder
+
+Ftabpt	ds	1		; :FTAB pointer
+Repcnt	ds	1		; Foreground counter
+Jiflg1	ds	1		; Jiffy counter #1
+Jiflg2	ds	1		; Jiffy counter #2
+
+;
+; The object table
+;
+nobjs	=	16			; max # of objects (MUST be power of 2)
+cstat	ds	nobjs		; public state
+pstat	ds	nobjs		; private state
+cbits	ds	nobjs		; magic bits (copied into CBITS by Sched)
+cmode	ds	nobjs		; private state -- usually font#
+ccnt	ds	nobjs		; private counter, usually a timer....
+ctyp	ds	nobjs		; object species
+cupd	ds	nobjs		; jiffy of last update
+clev	ds	nobjs		; level in lmap
+cseg	ds	nobjs		; segment-in-line
+cxl	ds	nobjs		; X,Y addr, fraction + integer
+cxh	ds	nobjs
+cyl	ds	nobjs
+cyh	ds	nobjs
+coldx	ds	nobjs		; MSB of old x,y integer, after move
+coldy	ds	nobjs
+coldm	ds	nobjs		; old mode number
+	eject
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; WORK TABLES FOR MUSIC ROUTINES ;
+;         DONKEY KONG            ;
+; should be contiguously defined ;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+HAMIX					;hammer index for channel 2,3,4
+MSTCTR	ds	1			;sound flag ctr
+
+                         		;global index for sound tables
+GLOBIX	ds	1   			;used positions: 0,2,4,6
+	ds	1            		;MUSPR has processed all sound
+      	ds	1                       ;for this channel offset
+	ds	1
+	ds	1
+	ds	1
+	ds	1
+	ds	1
+					
+
+MUSFS	ds	1			;music freq shadow
+MUSCS	ds	1			;music control shadow
+	ds	1     			;channel 2 offset
+	ds	1
+	ds	1                       ;channel 3 offset
+	ds	1
+	ds	1                       ;channel 4 offset
+	ds	1
+
+SUSLNS	ds	1			;sustain length of note shadow
+TOTDRS	ds	1			;total duration of note shadow
+	ds	1
+	ds	1
+	ds	1
+	ds	1
+	ds	1
+	ds	1
+
+;
+; sound flags
+; zero ==> not running
+; one  ==> running
+;
+mstate	=	*			; base of sound flags
+
+pntfg	ds	1
+sprfg	ds	1
+grlfg	ds	1
+grnfg	ds	1
+falfg	ds	1
+stpfg	ds	1
+hamfg	ds	1
+atkfg	ds	1
+mr1fg	ds	1
+mr2fg	ds	1
+rotfg	ds	1
+rivfg	ds	1
+jmpfg	ds	1
+wlkfg	ds	1
+howfg	ds	1
+intfg	ds	1
+mstnum	=	intfg - mstate
+
+;
+; Sound register 'shadows'
+;
+frq1s	ds	1
+cnt1s	ds	1
+frq2s	ds	1
+cnt2s	ds	1
+frq3s	ds	1
+cnt3s	ds	1
+frq4s	ds	1
+cnt4s	ds	1
+
+;
+; more sound vars
+;
+INTRX1	ds	1
+INTRX2	ds	1
+vtime	ds	1
+MUSIC2	ds	1
+FALF3	ds	1
+falc3	ds	1
+GRNCNT	ds	1
+	assert	* < pmb
+	subttl	'Lmap globals'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;			Lmap globals				;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; These get unpacked along with the lmap, and are mainly things that
+; vary from rack to rack.  Its cheaper to put them here than in their
+; own seperate table.
+;
+	org	lmap
+hamlev	ds	2			; hammer level, $ff ==> inactive
+hamx	ds	2			; hammer x pos
+hamy	ds	2			; hammer y pos
+scrin	ds	2			; init code addr
+scrst	ds	2			; lmap setup code addr
+dlvec	ds	2			; DLI handler
+
+;
+; prize stuff (there's a maximum of 3 prizes at once on the screen)
+;
+prizpos	ds	3			; horz positions for prizes
+prizy	ds	3			; index into PL3 for prize
+priztyp	ds	3			; type of prizes (for graphics)
+prizlev	ds	3			; level# for prize
+
+;
+; pointers to ladder fonts (for changing ladder colors)
+;
+clad4	ds	2			; 4-high ladder graphics
+clad1	ds	2			; 1-high ladder graphics
+cladr1	ds	2			; 1-high ladder rung
+ladx	ds	1			; x_pos of double ladders (or zero, if none)
+ladmax	ds	1			; bottom point of double ladders
+ladmin	ds	1			; top point of double ladders
+
+;
+; other random stuff
+;
+finrack	ds	1			; lmap level# Mario must climb to
+killlev	ds	1			; lmap level# that kills Mario
+ladyx	ds	1			; lady's x,y position base
+ladyy	ds	1
+kongx	ds	1			; Kong's x,y position base
+kongy	ds	1
+kongkl	ds	1			; Kong's level
+kongsg	ds	1			; Kong's segment number
+	assert	* = lmapi
+	subttl	'Tunable equates'
+;
+; These are somewhat tunable...
+broklad	=	5		; height of broken ladder segment
+pausech	=	$21		; Pause character is spacebar
+
+bcdly	=	120		; # of jiffies for a bonus-clock tick (2 sec)
+
+PtHei	=	16		; height of protagonist fonts
+PtHyst	=	2		; "hysteresis" for ladder-climbing
+
+PtDie1	=	06		; VBls between fonts of die-effect
+PtDie2	=	45		; 3/4s before die sequence starts
+PtDie3	=	75		; about 1s for final halo font
+
+PtVeLd	=	$0090		; Jumpman velocity on ladder
+PtWVel	=	$00a0		; Jumpman walking velocity
+PtJXVel	=	$0050		; Jumpman x-velocity for fwd or backwd jump
+cspeed	=	$60		; conveyerbelt speed
+	assert	cspeed < $80	;  ['cause the damn code is wired]
+cdelay	=	5		; 4.5 bonus ticks for reversal
+
+;
+; PtSvel and PtYacc are governed by the usual Newtonian equations of
+; motion.  Note that PtSvel must never exceed $100, since the jump
+; code can't handle it.  The code in PSFALL will, however, handle it
+; (mainly 'cause it HAS to....)
+;
+
+PtSVel	=	-400		; Jumpman start-jump velocity
+PtYAcc	=	20		; Gravity's acceleration, for every object
+gravity	=	ptyacc		; just a synonym
+PtMaxX	=	160-5		; Jumpman max X-position
+
+GRWID	=	6		; width of a girder segment
+GRHEI	=	6		; height of a girder segment
+	eject
+	subttl	'Random equates'
+
+;
+; graphics
+;
+pmx	=	$30		; player offset of left side of playfld
+pmy	=	$20		; player offset of original top of screen
+gmode	=	$e		; graphics mode
+nlines	=	198		; # of lines maintained in Playfield
+vlines	=	198		; # of lines visible at a time
+nwide	=	160		; # of pixels wide (std playfield)
+bwide	=	40		; # of bytes wide
+
+njydn	=	$0f - JYDN	; mask for pure joystick-down
+njyup	=	$0f - JYUP	; mask for pure joystick-up
+
+RKRAMP	=	0		; Ramps rack
+rkcrt1	=	0		; For intro cartoon
+RKZIGR	=	1		; Ziggurat rack
+RKELEV	=	2		; Elevators rack
+RKCONV	=	3		; Conveyerbelt rack
+
+
+;
+; enable-bits for features of the various racks
+;
+enlady	=	%10000000	; enable the wiggling lady
+entkong	=	%01000000	; enable kong throwing barrels
+enskong	=	%00100000	; enable stamping-kong
+enlkong	=	%00010000	; enable kong with lady under arm
+
+
+;
+; Sound effects
+;
+snintro	=	0		; Music for introductory cartoon
+snattak	=	1		; Background theme for hammer-attack
+snjump	=	2		; Ephemeral for Mario jumping
+snpoin	=	3		; Ephemeral for point-scoring
+snstamp	=	4		; Ephemeral for Kong stamping
+snwalk	=	5		; Background for Mario walking
+snmar1	=	6		; Background march theme #1
+snmar2	=	7		; Background march theme #2
+sngirl	=	8		; Music for Mario at top of Ziggurat
+snhmuch	=	9		; Music for "How-high" cartoon
+snrotat	=	10		; Music for Mario dying (rotating)
+snrivet	=	11		; Music for removing last rivet
+snsprin	=	12		; Ephemeral/Background for bouncing spring
+snfall	=	13		; Ephemeral for object falling
+snbuzz	=	14		; AKA sngrin
+sngrin	=	14		; Ephemeral for Kong grimacing
+snhamm	=	15		; Hammer sound (?what???)
+snbeat	=	16		; Kong beats chest
+
+
+;
+; Species equates:
+;
+SPBAR	=	0		; Barrel or Beam
+SPFB	=	1		; Fireball
+SPFF	=	2		; Firefox
+SPSAND	=	3		; Sandpile
+SPSPR	=	4		; Spring ("mad jackhammer"?)
+SPMOVL	=	5		; Movable ladder
+SPKONG	=	6		; Kong himself
+
+;
+; Masks for bits in LMAPI[]
+;
+;	+-------+-------+-------+-------+-------+-------+-------+-------+
+;	|	|	|			|			|
+;	| Hammer| Rivet	| LDUPP  Ladder  LDBRKP |	Girder		|
+;	|  bit	|  bit	| magic  flavor	 magic	|	flavor		|
+;	|	|	| bit		 bit	|			|
+;	+---7---+---6---+---5---+---4---+---3---+---2---+---1---+---0---+
+;
+;
+HAMASK	=	%10000000	; Hammer-P bit
+RIMASK	=	%01000000	; Rivet-P bit (never changes)
+
+LDMASK	=	@70		; Ladder-bits mask
+LDUPP	=	%00100000	; Ladder-up-P (1==> ladder goes up from here)
+LDBRKP	=	%00001000	; Ladder-broken-P (1 ==> ladder is broken)
+LDEMPT	=	@00		; No ladder
+LDTOPM	=	@10		; Top of moving ladder
+LDTOP	=	@20		; Top of a ladder
+LDTOPB	=	@30		; Top of a broken ladder
+LDBOT	=	@40		; Bottom of a ladder
+LDBOTB	=	@50		; Bottom of a broken ladder
+
+GRMASK	=	@7		; Girder-bits mask
+GREMPT	=	@0		; No girder or rivet
+GRAMP1	=	@1		; right half of girder #1
+GRRIVE	=	@2		; Girder with rivet
+GRTUBE	=	@3		; 'Tube' girder for Ziggurat
+GRCONV	=	@4		; conveyerbelt
+GRBLNK	=	@5		; blank girder segment
+GRELVD	=	@6		; down-elevator segment
+GRPULL	=	@7		; pully
+
+;
+; Masks for bits in critter public state variable CStat[]
+;
+CTDIE	=	%10000000	; 1 ==> obj is dying
+CTJUMP	=	%01000000	; 1 ==> obj has been jumped over
+CTDISS	=	%00001000	; 1 ==> trying to disappear
+				; 0 ==> trying to re-appear
+CTUNDR	=	%00000100	; 1 ==> undrawn
+CTALIV	=	%00000001	; 1 ==> obj is alive
+
+;	+-------+-------+-------+-------+-------+-------+-------+-------+
+;	|	|	|	|	|	|	|	|	|
+;	| CTDIE | CTJUMP|       |       | CTDISS| CTUNDR|       | CTALIV|
+;	|	|	|	|	|	|	|	|	|
+;	+---7---+---6---+---5---+---4---+---3---+---2---+---1---+---0---+
+
+
+;
+; this is the mandatory value for a creature's "ladder" state.  It is
+; global because Mario shouldn't receive points for jumping over a
+; creature that is climbing or descending a ladder.
+;
+globlad	=	2		; Pstat[x] == GlobLad ==> on a ladder
+
+;
+; This bit tells the REDRAW routine whether to draw a critter normally,
+; or to translate PF0 to PF1 during the drawing process (for Beams, blue
+; fireballs and firefoxen, and so on...)
+;
+CMBLUE	=	%10000000	; 1 ==> turn blue ("look Mabel, its...")
+
+
+;
+; Score values
+;
+SC100	=	0		; "100"
+SC300	=	1		; "300"
+SC500	=	2		; "500"
+SC800	=	3		; "800"
+SCZERO	=	4		; "000" (force scoreline refresh)
+SCBON	=	5		; current value of bonus timer
+SCFLOT	=	$80		; make into floating score with PL3/M3
+
+;
+; equates for printing strings with PUTS
+;
+EOL	=	$ff		; End-of-string
+NL	=	$fe		; newline
+PSXY	=	$fd		; goto X,Y
+PSXINC	=	$fc		; add arg to X position
+psquote	=	$fb		; quote a font-pointer
+
+immvbl	=	6		; SETVBV arg for immediate VBL

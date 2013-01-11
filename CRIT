@@ -1,0 +1,314 @@
+	subttl	'Creature support'
+;
+; DELTAP - return bool of changed-position-P
+; Passed: ccrit = critter number
+; Returns:	A == 0 ==> not changed position
+;		A != 0 ==> changed position
+; Uses: AX
+; Imports: CXH[], CYH[], COLDX[], COLDY[]
+; Called-by: almost everything
+;
+deltap	local
+	ldx	ccrit
+	lda	cxh,x
+	cmp	coldx,x
+	bne	:win
+	lda	cyh,x
+	cmp	coldy,x
+	bne	:win
+	lda	#0
+	rts
+:win	lda	#1
+	rts
+
+
+;
+; CRINIT - common code for critter init
+; Passed: A = 2's complement of creature's graphics height
+;	  X = critter#
+;	  vtmp = lmap offset (from Sched())
+; Returns:
+;	cxh, cyh with their proper values
+;	ccstat setup for transition to visible-mode
+; Uses: AY
+;
+crinit	local
+	clc				; cyh[x] = lmaph[vtmp] - $100-height_of_critter
+	ldy	vtmp
+	adc	lmaph,y
+	sta	cyh,x
+
+	ldy	cseg,x			; cxh = lmseg[cseg[x]]
+	lda	lmseg,y
+	sta	cxh,x
+
+	lda	ccstat			; ccstat ~= CTDISS
+	and	#$ff - CTDISS
+	sta	ccstat
+	rts
+
+
+;
+; NEARLD - predicate: return TRUE if near to a ladder
+; Passed: X = critter#
+;	  vtmp = lmap offset (from global critter setup, I guess)
+; Returns: Cf=1 ==> err
+;	   Cf=0 ==> A = ladder type (!= 0)
+;		    Y = segment# of ladder (cseg[x] or cseg[x] + 1)
+;
+; Uses: nothing
+; Called-by: lots of critter handlers
+;
+nearld	local
+	ldy	vtmp			; lets look at the lmap...
+	lda	lmapi,y
+	and	#LDMASK			; is there a ladder here?
+	beq	:1
+
+	pha				; (save ladder type on stack)
+	ldy	cseg,x			; how close are we to it?
+	lda	cxh,x			; A = cxh[x] - lmseg[cseg]
+	sec
+	sbc	lmseg,y
+	cmp	#2			; less than two pixels?
+	pla
+	bcc	:r
+
+:1	ldy	vtmp			; check the next segment
+	lda	lmapi+1,y
+	and	#LDMASK			; is there a ladder /here/?
+	beq	:punt			; (*sigh*)
+
+	pha				; save ladder type
+	sec				; A = lmseg[cseg[x]+1] - cxh[x]
+	ldy	cseg,x
+	iny
+	lda	lmseg,y
+	sbc	cxh,x
+	cmp	#GRWID-1		; near enough to seg boundary?
+	pla
+	bcc	:punt			; (no)
+	clc				; yes, so return winnage
+:r	rts
+
+:punt	sec
+	rts
+
+
+;
+; Generalized critter 'Die' state
+; The basic idea is to make the critter invisible (via Sched()) and then
+; clobber the CSTAT entry.
+; Points are awarded, and the explosion is setup, if the critter was
+; hit by the hammer.
+;
+cridie	local
+	lda	ccstat			; wait for critter to disappear
+	tay
+	and	#CTUNDR
+	beq	:1			; (not invisible yet...)
+	lda	#0			; disable critter
+	sta	ccstat
+	dec	ncrit			; -- creature count
+
+	tya				; check killed-P bit (why'd we die, anyway?)
+	bpl	:r			; (not hit by hammer...)
+
+;
+; startup explosion effect
+;
+	lda	cxh,x			; setup x,y position
+	sta	xplodx
+	lda	cyh,x
+	sta	xplody
+
+	ldi	xplods,xplodl-1		; init seq counter
+	ldi	xplodt,0		; init seq timer
+	dldi	anivec,xplode		; setup animation vector
+	inc	animon			; turn on animation
+
+	ldi	hamfg,hamle2		; startup hammer-fx sound
+	sta	hamix+2
+	ldi	hamix+4,hamle3
+	ldi	hamix+6,hamle4
+
+;
+; award points for smashed critter
+;
+	lda	#SC300 + SCFLOT		; assume measly 300 pts
+	ldy	cmode,x			; is the critter blue?
+	bpl	:nrand			; nope -- so don't randomize
+	ldy	ctyp,x			; get critter type
+	lda	:score,y		; vanilla score?
+	bmi	:nrand			; yes (has float bit set)
+
+	lda	random			; pick score SC300..SC800
+	and	#3
+	bne	:rand
+	adc	#1			; Cf is "don't care" here
+:rand	ora	#SCFLOT			; transform into floating score
+
+:nrand	ldx	vtmp			; X = lmap index of critter
+	jsr	addsc1			; add the score
+
+:r	lda	#0			; return "no movement"
+	rts
+
+;
+; critter is still alive, so request Sched() to make it invisible
+;
+:1	lda	ccstat			; set request bit
+	ora	#CTDISS
+	sta	ccstat
+	rts				; return "movement" [damnit -- we wanna go away!]
+
+;
+; table of score values for creatures
+; entries without SCFLOT set will be randomized (300, 500 or 800 pts)
+;
+:score	db	SC100+SCFLOT		; barrels are 100
+	db	0,0,0,0			; rest are random
+
+
+;
+; CMOVEX - hack creature's horizontal position
+; Passed: X = critter#
+;	  A,Y = LSB, MSB of velocity
+;	  vtmp = creature's lmap index
+; Returns: Y = new segment index (also installed in CSEG[x])
+; Uses: AY, vtmp1
+; Imports: HAKSEG, LMLINE
+; Updates: CSEG[x], CX[x]
+;
+cmovex	local
+	sta	vtmp1			; save velocity
+	sty	vtmp1h
+	lda	ccbits			; going right?
+	bmi	:1			; (yes)
+;
+; going left: CX -= velocity
+;
+	sec
+	lda	cxl,x
+	sbc	vtmp1
+	sta	cxl,x
+	lda	cxh,x
+	sbc	vtmp1h
+	cmp	#nwide
+	blt	:4
+	lda	#0
+:4	sta	cxh,x
+	jmp	:2
+;
+; going right: CX =+ velocity
+;
+:1	clc
+	lda	cxl,x
+	adc	vtmp1
+	sta	cxl,x
+	lda	cxh,x
+	adc	vtmp1h
+	cmp	#nwide			; range new pos
+	blt	:5
+	lda	#nwide-1
+:5	sta	cxh,x
+
+;
+; compute new segment#
+;
+cmove1	=	*			; (Alternate entry point)
+:2	ldy	cseg,x			; A = x pox, Y = seg#
+	jsr	hakseg
+	ldx	ccrit			; [HAKSEG clobbers 'x']
+	tya				; install new segment
+	sta	cseg,x
+
+	clc				; recompute lmap index
+	ldy	clev,x
+	adc	lmline,y
+	sta	vtmp
+	tay
+
+	rts
+
+
+;
+; HAKSEG - recompute segment number from x_position and current_segment
+; Passed: A = current X position
+;	  Y = current segment number
+; Returns: Y = new segment number
+; Uses: AXY
+; Imports: LMSEG[], LMAPWID, GRWID
+; Called-by: just about everybody
+;
+hakseg	local
+;
+; handle screw-cases: too far left and too far right
+;
+	cmp	#nwide + [[$100-nwide]/2]
+	bge	:lt			; too far right
+	cmp	#nwide
+	bge	:ge			; too far left
+
+;
+; search for the appropriate segment...
+;
+	tax
+:loop	cpy	#lmapwid + $80		; negative segment#?
+	bge	:lt
+	cpy	#lmapwid		; seg# too positive?
+	bge	:ge
+
+	txa				; segment# too low? (but still in range...)
+	cmp	lmseg,y
+	bge	:1
+	dey				; yeah, so try the next segment down
+	jmp	:loop
+
+:1	sec				; close enough to left of current segment?
+	sbc	lmseg,y
+	cmp	#GRWID
+	blt	:r			; we win...
+	iny				; no, so try the next one up
+	jmp	:loop
+
+:ge	ldy	#lmapwid-1		; punt: seg# too large
+:r	rts
+
+:lt	ldy	#0			; punt: seg# too small
+	rts
+	rts
+
+
+;
+; CBELTD - return dir of conveyerbelt
+; Passed: A = x_position
+;	  Y = lmap level#
+; Returns: A = delta_x for creature (or Mario) for given level & segment
+;	   Y = appropriate sign extension for delta_x ($ff | $00)
+; Uses: AY
+; Imports: CDIR, CSPEED
+; Assumes: graphics setup for conveyerbelt rack is correct....
+;
+cbeltd	local
+	cpy	#3			; on double-c_belt level?
+	beq	:lev3
+	dey				; on level one?
+	bne	:zero			; no, so return delta_x = 0
+	lda	cdir			; return dir of 1st cbelt
+	bmi	:minus			; go sign extend it...
+	bpl	:plus			; ["uncond"]
+
+:lev3	cmp	#nwide+[[$100-nwide]/2]	; negative on left side?
+	bge	:plus			; (yes)
+	cmp	#[12*6]+4		; on right side?
+	bge	:minus			; (yes, so force to the left)
+
+:plus	lda	#cspeed			; force to right side
+	ldy	#0			; sign extend so its positive
+	rts
+:minus	lda	#$100 - cspeed
+	ldy	#$ff			; sign extend so its negative
+	rts
+:zero	lda	#0
+	rts

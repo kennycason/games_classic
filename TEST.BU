@@ -1,0 +1,19 @@
+	subttl	'Debugging code'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;							;;
+;;			Testing code			;;
+;;							;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+test	local
+	lda	#1
+	ldx	#1
+	jsr	scrgen
+
+rabbit	jsr	dconsw
+	cmp	#7
+	beq	rabbit
+
+	jsr	icart2
+	jmp	rabbit
+

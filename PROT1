@@ -1,0 +1,820 @@
+	subttl	'Jumpman Movement'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;							;;
+;;		      Jumpman movement			;;
+;;	   (this is the first half of the file)		;;
+;;							;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+; Temp Usage:
+;
+; vtmp, vtmph	-- saved copies of PTXH, PTYH
+; vtmp1		-- index into segment jumpman is over
+; vtmp1h	-- !=0 ==> not at rightmost segment on screen
+;
+
+
+ptnrots	=	15			; # of rotations*4
+hamdly	=	6			; hammer swing delay
+
+;
+; Jumpman fonts (offsets into font addr table PfTbl[])
+;
+pficl0	=	0		; 0..5, Mario climbing fonts
+pfistd	=	pficl0+1	;  standing (at top of ladder)
+pfillf	=	pficl0+6	;  jumping left
+pfilrt	=	pfillf+1	;  jumping right
+pfirl0	=	pfilrt+1	; 8..11, rotating die fonts
+pfhalo	=	pfirl0+4	;  end of die sequence, with halo
+pfiwl0	=	pfhalo+1	; 13..15, walking left
+pfiwr0	=	pfiwl0+3	; 16..18, walking right
+pficlr	=	pfiwr0+3	;  the empty Pt font (clear)
+pfihl0	=	pficlr+1	; 20..25, hammering left
+pfihr0	=	pfihl0+6	; 26..31, hammering right
+pfijhl	=	pfihr0+6	; 32, jumping left with hammer
+pfijhr	=	pfijhl+1	; 33, jumping right with hammer
+
+
+;
+; Protagonist states
+;
+PsInit	=	0		; initialize
+PsNorm	=	1		; normal behavior (walking, etc.)
+PsLadr	=	2		; on a ladder
+PsFall	=	3		; falling (and about to die)
+PsJump	=	4		; jumping
+
+
+;
+; UPROT - update the jumpman
+; Passed: Nothing
+; Uses: vtmp*, AXY
+; Imports: lmap*[], protagonist fonts, RIVCNT
+; Exports: FREEZP
+; Updates: DEMIND, PSTATE and other random jumpman state variables
+;
+uprot	local
+	lda	alivep			; Is He Dead?
+	bpl	:1			; (no)
+
+;
+; Update die animation
+;
+	dec	ptdly			; -- font timer
+	bne	:r			; (punt if not done yet)
+
+	lda	ptmode			; startup die sound fx on first
+	cmp	#ptnrots		;  font of rotate sequence
+	bne	:nosnd
+	ldi	rotfg,ROTLEN		; start of die seq, so startup sound effect
+:nosnd
+	dec	ptmode			; - die sequence counter
+	bpl	:2			; (still dying)
+
+	ldi	alivep,0		; done with die seq, turn Mario off
+	lda	#PFICLR			; draw the blank font
+	jsr	ptdraw
+:r	rts
+
+:2	bne	:3			; (in fact, still spinning)
+	lda	#PFHALO			; show last die-font
+	jsr	ptdraw
+	ldi	ptdly,PTDIE3		; setup long delay
+	rts
+
+:3	ldx	ptfont			; show next spin-font
+	lda	:trans,x
+	jsr	ptdraw			; (draw it)
+	ldi	ptdly,PTDIE1		; setup short delay
+	rts
+
+;
+; Check if Mario has hit anything deadly
+;
+:1	ldx	ptyh			; X = y_position
+	lda	curscr			; on Elevator rack?
+	cmp	#RKELEV
+	bne	:noelev			; (no)
+
+	lda	ptseg			; A = segment#
+	cmp	#3			; on upgoing elevator?
+	blt	:elev1			; (no)
+	cmp	#5+1
+	bge	:elev1
+	cpx	#56+GRHEI/2		; too far up?
+	blt	ptdie			; (yes, so die)
+
+:elev1	cmp	#11			; on downgoing elevator?
+	blt	:noelev			; (no)
+	cmp	#13+1
+	bge	:noelev
+	cpx	#191-PTHEI-2		; too far down?
+	bge	ptdie
+
+:noelev	lda	ptlev			; is he on the kill-level?
+	cmp	killlev
+	beq	ptdie			; (yes...so die)
+
+	ldi	vtmp1,4			; vtmp1 = x_size
+	ldi	vtmp1h,12		; vtmp1h = y_size
+	stx	vtmph			; vtmph = y_position
+	ldx	ptxh			; vtmp = ptxh+1
+	inx
+	stx	vtmp
+	jsr	collis			; test for collisions
+	bcs	ptdie			; Cf set ==> hit deadly obj
+
+	lda	bclock			; is bonus clock at zero?
+	ora	bclock+1
+	bne	:4			; (no)
+
+;
+; Bump Mario off by setting PSTATE and friends
+;
+ptdie	ldi	alivep,$ff		; set state = dying
+	ldi	ptmode,ptnrots		; setup revolution count
+	ldi	ptdly,PTDIE2		; frob initial long delay for startup of rotate
+	ldi	ptfont,pfirl0		; setup initial die-font
+	ldi	hstate,0		; turn off the hammer
+	jsr	sndoff			; turn off all other sounds
+	ldi	stpfg,STPLEN		; startup 'Bang' sound effect...
+	rts
+
+;
+; Check if the hammer can kill anything
+;
+:4	ldx	ptfont			; is the hammer on?
+	cpx	#pfihl0
+	blt	:noham			; (no)
+
+	lda	:xsiz,x			; setup x,y size parameter
+	sta	vtmp1
+	lda	:ysiz,x
+	sta	vtmp1h
+
+	clc				; setup x,y position parameter
+	lda	ptxh
+	adc	:xpos,x
+	sta	vtmp
+
+	clc
+	lda	ptyh
+	adc	:ypos,x
+	sta	vtmph
+
+	jsr	collis			; check for collisions
+	bcc	:noham			; (none...whopee!)
+	tax				; A = critter hit
+	lda	cstat,x			; set critter's kill-bit
+	ora	#CTDIE
+	sta	cstat,x
+
+;
+; Check if Mario has finished the rack
+;
+:noham	lda	ptlev			; at top level?
+	cmp	finrack			; check per-rack finish-level...
+	beq	:win			; (yes)
+	lda	rivcnt			; or are the rivets gone?
+	bne	:5			; (no)
+
+; Mario just finished the rack
+:win	ldi	alivep,0		; tell foreground about it
+	inc	rackdn			; ++ rack_finished_P
+	lda	#SCBON			; add the bonus clock into the current score...
+	jsr	addsc
+	rts
+
+;
+; If in Elevators rack, update the elevator segments
+;
+:5	lda	rackn
+	cmp	#RKELEV
+	bne	:6			; (not in Elevators)
+
+	jsr	uelev			; update the elevator platforms
+
+;
+; setup common temps for Jumpman state handlers
+;
+:6
+	mv	ptolds,ptseg		; ptolds = ptseg
+
+	clc				; vtmp1 = ptseg + lmline[ptlev]
+	lda	ptseg
+	ldx	ptlev
+	adc	lmline,x
+	sta	vtmp1
+
+	mv	vtmph,ptyh		; save current Y-pos
+	mv	vtmp,ptxh		; save current X-pos
+	sec				; on segment boundary?
+	ldx	ptseg
+	sbc	lmseg,x			; if so, then no next segment
+	cpx	#lmapwid-1		; at last segment?
+	bne	:8			; (no)
+	lda	#0			; yes, so no next segment
+:8	sta	vtmp1h			; set next-seg predicate
+
+	ldx	pstate			; jump-ind to state handler
+	lda	:jtblh,x		; put addr on stack...
+	pha
+	lda	:jtbll,x		; ... and jump there...
+	pha
+	rts
+
+;
+; table of pointers to handlers for Mario's five states
+; These are really the addresses-1, because the indirect-jump is
+; faked using PHAs and an RTS
+;
+:jtbll	db	low [PtInit-1], low [PtNorm-1], low [PtLadr-1]
+	db	low [PtFall-1], low [PtJump-1]
+:jtblh	db	high [PtInit-1], high [PtNorm-1], high [PtLadr-1]
+	db	high [PtFall-1], high [PtJump-1]
+
+;
+; Transition table for spinning die fx
+;
+:trans	=	*-pfirl0
+	db	pfirl0+1, pfirl0+2, pfirl0+3, pfirl0+0
+
+;
+; tables for x,y size and x,y position offets for the hammer's kill-
+;  region, as a function of what font is showing:
+;
+:xsiz	=	*-pfihl0
+	db	6,6,6,8,8,8
+	db	6,6,6,8,8,8
+	db	8,8
+
+:ysiz	=	*-pfihl0
+	db	11,11,11,7,7,7
+	db	11,11,11,7,7,7
+	db	7,7
+
+:xpos	=	*-pfihl0
+	db	$100-8,$100-8,$100-8,0,0,0
+	db	8,8,8,0,0,0
+	db	0,0
+
+:ypos	=	*-pfihl0
+	db	6,6,6,$100-8,$100-8,$100-8
+	db	6,6,6,$100-8,$100-8,$100-8
+	db	$100-8,$100-8
+       eject
+;
+; PTINIT - silly init state for Mario
+; Updates: PState
+;
+ptinit	local
+	inc	pstate			; goto PSNORM state
+	ldi	ptoldf,pficlr
+
+	sec
+	lda	lmaph,x			; get segment height
+	sbc	#PTHEI			;   minus Mario's height
+	sta	ptyh			;  & install as Mario's height
+
+	lda	#pfiwr0			; set facing right...
+	jsr	PtDraw			;  ...and draw the bugger
+	rts
+
+
+;
+; PTNORM - vanilla jumpman movement
+;
+ptnorm	local
+	ldx	vtmp1			; is Mario supported by something?
+	lda	lmapi,x			; get info bits
+	and	#GRMASK
+	bne	:1			; (this seg ok)
+	lda	vtmp1h			; nothing there -- check other segment
+	beq	:fall			; nothing there, so start falling
+	inx
+	lda	lmapi,x			; is there a girder here?
+	and	#GRMASK
+	bne	:1			; yes
+;
+; startup a fall
+;
+:fall	lda	#JYRT+JYLF		; fall straight down...
+	ldi	ptyvel,0		; starting with a zero velocity
+	sta	ptyvel+1
+	jmp	enfall			; put Mario in free-fall
+
+;
+; Hack position on current segment
+; Its OK to do so, because we know that Mario is standing on something
+; solid at this point.
+;
+:1
+:2	sec				; ptyh = lmaph[x]-PTHEI
+	lda	lmaph,x
+	sbc	#PTHEI
+	sta	ptyh
+
+;
+; Startup a jump, if possible
+;
+:3	ldx	usr			; get joystick button bit
+	lda	strig0,x
+	ora	otrig			; or-in with trigger-valid-P
+	ora	hstate			; can't jump if hammer is active
+	bne	:4			; (one of the above is non-zero, so punt)
+;
+; startup jump
+;
+	ldi	ptjcnt,0		; zero jump-over count
+	mv	ptjlev,ptyh		; record starting-Y position
+	dldi	ptyvel,PTSVEL		; set initial jump velocity
+	lda	stick0,x		; record left, right joystick bits
+	eor	#JYRT + JYLF		; complement dir bits
+	and	#JYRT + JYLF		; save only left, right bits
+	sta	ptjdir
+	ldi	jmpfg,JMPLEN		; startup Jump sound effect
+	ldi	pstate,PSJUMP		; state = jumping
+
+	lda	ptoldd			; pick a jumping-font
+	ldx	#pfillf			;  assume left...
+	and	#JYLF
+	beq	:3a
+	ldx	#pfilrt			;  wrong: right
+:3a	stx	ptfont			; and install it
+	jmp	ptjump			; go jump
+
+;
+; Hack ladder climbing
+;  - can't climb if the hammer's turned on
+;  - can't climb if there's no ladder nearby
+;  "Top" and "Bottom" terms here are misleading....
+;
+:4	lda	hstate			; punt if hammer is turned on
+	bne	:5
+	ldy	usr			; look at joystick bits
+	lda	stick0,y
+	and	#JYUP + JYDN		; UP or DOWN bits active?
+	cmp	#JYUP + JYDN
+	beq	:5			; (nope -- so punt)
+
+	ldx	vtmp1			; x --> lmap offset
+	lda	lmapi,x			; is there a ladder here?
+	and	#LDMASK
+	beq	:6			; (no, try again)
+	sec				; A = ptxh - lmseg[ptseg]
+	lda	ptxh
+	ldy	ptseg
+	sbc	lmseg,y
+	cmp	#PTHYST+1		; A < PTHYST+1?
+	blt	:climb			; yes, see if we can climb the ladder
+; check other segment for ladderness
+:6	lda	vtmp1h			; anything there?
+	beq	:5			; (no -- punt)
+	inx				; ++segment-index
+	lda	lmapi,x			; lets look at the magic bits
+	and	#LDMASK
+	beq	:5			; (no ladder here, either)
+	sec				; A = lmseg[ptseg] - ptxh
+	ldy	ptseg
+	lda	lmseg+1,y
+	sbc	ptxh
+	cmp	#PTHYST+1		; A < PTHYST+1
+	bge	:5			; (ladder's not near enough...so punt)
+
+;
+; OK -- we know that the Luser is trying to climb a ladder, and that
+; there's a ladder nearby (one that's close enough to climb).  Let's see
+; if the Luser is pressing the joystick in the right direction:
+;
+:climb	ldy	usr			; get joystick bits
+	lda	stick0,y
+	and	#JYUP			; going up?
+	bne	:cl1			; (no)
+	lda	lmapi,x			; was it an up-going ladder?
+	and	#ldupp
+	beq	:5			; (no, so punt)
+	dec	ptyh			; ensure on-ladderness
+	jmp	:win			; go climb the beastie
+
+:cl1	lda	lmapi,x			; was it a down-going ladder?
+	and	#ldupp
+	bne	:5			; (no, so punt)
+	inc	ptyh			; ensure on-ladderness
+;
+; Put Mario on the ladder at the segment indexed by 'X'
+;
+:win	cpx	vtmp1			; this segment?
+	beq	:win1			; (yes)
+	inc	ptseg			; no -- adjust segment number
+:win1	ldy	ptseg			; set real X-position from segment
+	lda	lmseg,y
+	sta	ptxh
+	ldi	pstate,PSLADR		; set climbing state
+	ldi	ptmode,0		; set initial climbing font
+	rts				; go climb in next vbl
+
+;
+; hack vanilla movement: left or right at a steady velocity
+;
+:5	ldy	usr			; get joystick bits again
+	lda	stick0,y
+	and	#JYLF			; going left?
+	bne	:7			; (no)
+
+	sec				; ptx -= PTWVEL
+	lda	ptxl
+	sbc	#low PTWVEL
+	sta	ptxl
+	lda	ptxh
+	sbc	#high PTWVEL
+
+	cmp	lmseg			; underflow?
+	bge	:8a			; (no)
+	lda	lmseg			; yes, so reset X to lowest legal value
+:8a	sta	ptxh
+	jmp	:8
+
+:7	lda	stick0,y		; going right?
+	and	#JYRT
+	bne	:8			; (no)
+
+	clc				; ptx += PTWVEL
+	lda	ptxl
+	adc	#low PTWVEL
+	sta	ptxl
+	lda	ptxh
+	adc	#high PTWVEL
+	sta	ptxh
+
+	cmp	#PTMAXX+1		; overflow?
+	blt	:8			; (no)
+	ldi	ptxh,PTMAXX		; yes -- reset MSB of x-position
+
+:8
+;
+; Hack hammer swinging
+;
+	local
+	lda	hstate			; update hammer
+	beq	:noham			; (it isn't on, so punt)
+	dec	hcnt			; time to swing it?
+	bpl	:hamon			; (no, but update music anyway)
+	lda	htimer			; timer for it to go away?
+	cmp	btimer
+	bne	:1
+
+	ldi	hstate,0		; turn off the hammer
+	sta	atkfg			; turn off attack theme
+	inc	otrig			; disable jumping until button released
+	ldx	ptfont			; back to vanilla walking fonts
+	lda	:towalk,x
+	sta	ptfont
+	bne	:noham			; ["uncond"]
+
+:1	ldi	hcnt,hamdly			; reset hammer swing delay
+	inc	hstate			; toggle bit zero
+	ldx	ptfont			; swing hammer up or down
+	lda	:swing,x
+	sta	ptfont
+
+:hamon	lda	atkfg			; restart attack theme
+	bne	:noham
+	ldi	atkfg,atklen
+
+;
+; switch facing direction
+;
+:noham	lda	stick0,y		; switch facing direction?
+	and	#JYLF + JYRT
+	cmp	#JYLF + JYRT
+	beq	:noswitch		; standing still doesn't count
+
+;	cmp	ptoldd
+;	beq	:noswitch		; no change, so don't switch
+
+	ldx	ptfont			; ensure font in range for trans
+	cpx	#pfiwl0
+	bge	:sw3
+	ldx	#pfiwl0			; range it
+:sw3	sta	ptoldd			; install new "old" direction
+	and	#JYLF
+	beq	:sw1
+	lda	:tort,x			; force facing right
+	bne	:sw2			; [uncond]
+:sw1	lda	:tolf,x			; force facing left
+:sw2	sta	ptfont
+
+;
+; if changed horizontal position, then hack walking fonts
+;
+:noswit	lda	ptxh			; any delta_x?
+	cmp	vtmp
+	beq	:2			; (no)
+
+	lda	ptxh			; time to change walking fonts?
+	and	#%10
+	beq	:3			; (no)
+	ldx	ptfont
+	lda	:trans,x
+	sta	ptfont
+:3	jsr	walk			; restart walking sound
+
+;
+; if Mario's on a conveyerbelt, drag him in one direction or the other
+;
+:2	lda	curscr			; is this the right screen?
+	cmp	#RKCONV
+	bne	:noconv
+
+	lda	ptxh			; get c-belt direction
+	ldy	ptlev
+	jsr	cbeltd
+	tax
+	beq	:noconv			; no movement...
+
+	clc				; ptx. += A,Y
+	adc	ptxl
+	sta	ptxl
+	tya
+	adc	ptxh
+	tax
+
+	cmp	lmseg			; underflow?
+	bge	:ok1			; (no)
+	ldx	lmseg
+	bne	:ok			; [uncond]
+:ok1	cmp	#ptmaxx+1		; overflow?
+	blt	:ok
+	ldx	#ptmaxx
+:ok	stx	ptxh			; install x_position
+
+;
+; redraw Mario if he changed position
+;
+:noconv lda	ptxh			; delta_x?
+	cmp	vtmp
+	bne	:doit
+	lda	ptyh			; delta_y?
+	cmp	vtmp1
+	bne	:doit
+	lda	ptfont			; changed font?
+	cmp	ptoldf
+	beq	:doit
+	rts				; just return. nothing happened
+
+:doit	jsr	hptseg			; recompute PtSeg
+	jsr	rmriv			; hack rivet removal
+	lda	ptfont			; redraw Mario
+	jmp	ptdraw
+
+;
+; Font transitions for walking
+; (both just_walking and hammering left & right)
+;
+:trans	=	* - pfiwl0
+	db	pfiwl0+1, pfiwl0+2, pfiwl0+0
+	db	pfiwr0+1, pfiwr0+2, pfiwr0+0
+	db	pficlr
+	db	pfihl0+1, pfihl0+2, pfihl0+0
+	db	pfihl0+4, pfihl0+5, pfihl0+3
+	db	pfihr0+1, pfihr0+2, pfihr0+0
+	db	pfihr0+4, pfihr0+5, pfihr0+3
+
+;
+; font transition: from hammering to walking fonts
+;
+:towalk	=	*-pfihl0
+	db	pfiwl0, pfiwl0+1, pfiwl0+2
+	db	pfiwl0, pfiwl0+1, pfiwl0+2
+	db	pfiwr0, pfiwr0+1, pfiwr0+2
+	db	pfiwr0, pfiwr0+1, pfiwr0+2
+
+;
+; font transition: swinging the hammer up and down
+;
+:swing	=	*-pfihl0
+	db	pfihl0+3, pfihl0+4, pfihl0+5
+	db	pfihl0+0, pfihl0+1, pfihl0+2
+	db	pfihr0+3, pfihr0+4, pfihr0+5
+	db	pfihr0+0, pfihr0+1, pfihr0+2
+
+;
+; font transition: force facing left
+;
+:tolf	=	*-pfiwl0
+	db	pfiwl0+0, pfiwl0+1, pfiwl0+2
+	db	pfiwr0+0, pfiwl0+1, pfiwl0+2
+	db	pficlr
+	db	pfihl0+0, pfihl0+1, pfihl0+2
+	db	pfihl0+3, pfihl0+4, pfihl0+5
+	db	pfihl0+0, pfihl0+1, pfihl0+2
+	db	pfihl0+3, pfihl0+4, pfihl0+5
+
+;
+; font transition: force facing right
+;
+:tort	=	*-pfiwl0
+	db	pfiwr0+0, pfiwr0+1, pfiwr0+2
+	db	pfiwr0+0, pfiwr0+1, pfiwr0+2
+	db	pficlr
+	db	pfihr0+0, pfihr0+1, pfihr0+2
+	db	pfihr0+3, pfihr0+4, pfihr0+5
+	db	pfihr0+0, pfihr0+1, pfihr0+2
+	db	pfihr0+3, pfihr0+4, pfihr0+5
+
+
+;
+; WALK - startup Mario's walking sound effect
+; Passed: nothing
+; Returns: nothing
+; Uses: A
+; Updates: WlkFg
+;
+walk	local
+	lda	wlkfg			; is the walk-flag zero?
+	bne	:won			; (no, so its still going)
+
+	lda	clock			; restart it every 1/2 sec or so
+	and	#15
+	bne	:won
+	lda	#wlklen			; ok...restart it...
+	sta	wlkfg
+:won	rts
+	eject
+;
+; PTLADR - jumpman ladder movement
+;
+ptladr	local
+	clc				; vtmp2 = lmaph[ptseg + lmline[lmapl[vtmp1]]]
+	ldx	vtmp1			; Y=seg offset.		| == hei of dest segment
+	ldy	lmapl,x
+	lda	lmline,y
+	adc	ptseg
+	tay
+	lda	lmaph,y
+	sta	vtmp2
+
+	clc				; vtmp4 = ptyh + PTHEI
+	lda	ptyh
+	adc	#PTHEI
+	sta	vtmp4
+
+	ldy	usr			; Y = joystick value
+	lda	stick0,y
+	tay
+
+	lda	vtmp4			; at originating level?
+	cmp	lmaph,x
+	bne	:3			; (no)
+	lda	lmapi,x			; ladder goes up?
+	and	#LDUPP
+	beq	:2			; (no)
+
+	cpy	#NJYUP			; yes, so get off if stick != pure up
+	bne	:off			; (get off)
+	beq	:3
+
+:2	cpy	#NJYDN			; ladder goes down, so get off if stick != pure down
+	bne	:off
+
+:3	lda	vtmp2			; at ladder's destination level?
+	cmp	vtmp4
+	bne	:4			; (no)
+	lda	lmapi,x			; does the ladder go up?
+	and	#LDUPP
+	beq	:5			; (no)
+	cpy	#NJYDN			; yes, so get off if stick != pure down
+	bne	:off1			; (get off)
+	beq	:4
+
+:5	cpy	#NJYUP			; ladder goes down, so get off if stick != pure up
+	beq	:4			; (don't get off)
+
+:off1	lda	lmapl,x			; ptlev = destination level
+	sta	ptlev
+
+:off	ldi	pstate,PSNORM		; go back to "normal" state
+	inc	otrig			; invalidate joystick trigger until it goes up again
+
+	ldi	ptoldd,0		; invalidate facing direction
+	lda	#pfistd			; show Mario standing at top
+	jsr	ptdraw
+	rts				; back to normal next vbl
+
+;
+; Hack vertical position on ladder from joystick bits
+;
+:4	tya				; going up (A = joystick value)
+	and	#JYUP
+	bne	:6			; (no)
+	sec				; yes: pty -= PTVELD
+	lda	ptyl
+	sbc	#low PTVELD
+	sta	ptyl
+	lda	ptyh
+	sbc	#high PTVELD
+	sta	ptyh
+	jmp	:7
+
+:6	tya				; going down?
+	and	#JYDN
+	bne	:7			; (no)
+	clc				; yes: pty += PTVELD
+	lda	ptyl
+	adc	#low PTVELD
+	sta	ptyl
+	lda	ptyh
+	adc	#high PTVELD
+	sta	ptyh
+
+;
+; If Mario's on a "broken" ladder, then hack his Y-position so he
+;  can't climb up or down past the broken piece.
+;
+:7	lda	lmapi,x			; look at Broken-P magic bit
+	tay					; (save it for later)
+	and	#LDBRKP
+	beq	:8			; (not broken, so let him move)
+	tya					; (get magic bits back)
+	and	#ldupp			; on a down-going ladder
+	bne	:9			; (no)
+
+	clc				; on down-going broken ladder; below bottom of break?
+	lda	lmaph,x
+	adc	#GRHEI + BROKLAD
+	cmp	ptyh
+	bge	:8			; (no)
+	sta	ptyh			; yes, so reset Y position
+	jmp	:8
+
+:9	sec				; on up-going broken ladder
+	lda	lmaph,x			; is Mario above the break?
+	sbc	#BROKLAD + PTHEI
+	cmp	ptyh
+	blt	:8			; (no)
+	tay				; yes, so reset Y position
+	dey
+	sta	ptyh
+
+; update player font if position has changed
+:8	lda	ptxh
+	cmp	vtmp
+	bne	:10			; (different, so update)
+	lda	ptyh
+	cmp	vtmph
+	beq	:r			; (the same, so punt)
+
+;
+; update climbing font
+;
+:10	ldy	vtmp1			; if climbing up, target next level up
+	ldx	lmaph,y
+	lda	lmapi,y
+	and	#LDUPP
+	beq	:10a
+	ldx	vtmp2
+:10a	txa				; A = girder_hei - PtXh
+	sec
+	sbc	ptyh
+	bmi	:10b			; above girder, so normal climbing fonts
+
+	cmp	#PTHEI - :ctlen+1		; too far below girder?
+	blt	:10b			; yes, so use normal climbing fonts
+	tax				; get font for girder-climbing...
+	lda	:ctrans,x
+	bne	:10d			; [uncond]
+
+:10b
+	ldx	ptmode			; hack font# from table and mode
+	lda	:trans,x
+	bpl	:11
+	ldx	#0			; <0 ==> end of table
+	lda	:trans
+:11	inx				; next font, for next time
+	stx	ptmode
+:10d
+	jsr	ptdraw			; lets draw the beastie
+	jsr	walk			; restart walking sounds...
+:r	rts
+
+;
+; font numbers for climbing effect on ladder
+;
+:trans	db	pficl0, pficl0, pficl0, pficl0
+	db	pficl0+1, pficl0+1
+	db	pficl0+2, pficl0+2, pficl0+2, pficl0+2
+	db	pficl0+1, pficl0+1
+	db	$ff			; end of table
+
+;
+; font numbers for Mario climbing over the girder
+; (gets on his knees, and so on...)
+;
+:ctrans	=	*-2
+	db	pficl0+5, pficl0+5
+	db	pficl0+3, pficl0+3, pficl0+3
+	db	pficl0+4, pficl0+4, pficl0+4
+	db	pficl0+5, pficl0+5, pficl0+5
+	db	pfistd, pfistd, pfistd, pfistd
+:ctlen	=	14
+	eject

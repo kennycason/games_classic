@@ -1,0 +1,231 @@
+	subttl	'Creature Spawning'
+; SPAWN - spawn creatures
+; Each species of critter has its own timer and creation heuristic.
+;
+spawn
+;
+; Firecritter creation
+;
+	local
+	lda	curscr			; in Ramps?
+	cmp	#RKRAMP
+	bne	:1			; (no)
+	lda	spawfb			; beam hit firebarrel yet?
+	bne	:fix1			; (no, so punt)
+:epunt	jmp	:punt
+
+:fix1
+	ldi	spawfb,0		; clobber creation flag
+	sta	tmp1			; start on level zero
+	ldi	tmp,FBRTP		; setup to leap right
+	ldi	tmp1h,3			;  and segment three
+	bne	:creat			; [uncond] go make the critter
+
+:1	cmp	#RKZIGR			; on Zigurrat rack?
+	bne	:2
+	lda	cdfth			; creation timer == 0?
+	bne	:epunt			; (no -- extended punt)
+
+	ldi	tmp,FBFFOX		; let's make a firefoxen
+	lda	random			; pick a level for it
+	and	#7
+	cmp	#nlmapln-1		; in range?
+	blt	:3			; (yah)
+	lda	random			; pick another level
+	and	#3
+:3	sta	tmp1
+	tay				; y = future level#
+
+	lda	ptseg			; which way to jump?
+	cmp	#lmapwid/2		; (based on Mario's position)
+	bge	:4
+	lda	:rtbl,y			; on right side of screen
+	sta	tmp1h
+	jmp	:creat
+
+:4	lda	:lftbl,y		; on left side of structure
+	sta	tmp1h
+	jmp	:creat
+
+;
+; Table of starting segments for the left hand side of the Zigurrat
+;
+:lftbl	db	0,1,2,3,4,5,6
+
+;
+; Table of starting segments for the right-hand side of the Zigurrat
+;
+:rtbl	db	lmapwid-1,lmapwid-2,lmapwid-3,lmapwid-4
+	db	lmapwid-5,lmapwid-6
+
+;
+; Create fireballs on Conveyerbelts rack
+;
+:2	cmp	#RKCONV			; on conveyerbelts?
+	bne	:punt			; (no, so give up)
+	lda	cdfth			; anything to create?
+	bne	:punt			; (no, so go away)
+
+	ldi	tmp,0			; make us a fireball
+	ldi	tmp1,3			;  somewhere on level 3
+	ldi	tmp1h,lmapwid/2		;  ok.../that's/ where
+
+	lda	ptseg			; jump right?
+	cmp	#lmapwid/2
+	blt	:5			; (no, stay left)
+	ldi	tmp,FBRTP		; jump right
+
+:creat
+:5	ldy	cdiff			; reset creation timer
+	lda	scddly,y
+	sta	cdfth
+
+	lda	nfth			; too many critters?
+	cmp	smaxfth,y
+	bge	:punt			; (yes, so punt.  *sigh*)
+
+	lda	random			; make a vicious firecritter?
+	cmp	fbdiff,y		; (let's check the Oracle...)
+	bge	:6
+
+	lda	random			; turn on meany-bits at random
+	and	#FBFLEV + FBFSEG
+	ora	tmp
+	sta	tmp
+
+:6	jsr	fslot			; find a free creature slot
+	bcs	:punt			; ("Can't happen") -- no slots left
+	lda	tmp			; install critter bits
+	sta	cbits,x
+	lda	tmp1h			; install starting segment
+	sta	cseg,x
+	lda	tmp1			; setup intial level
+	sta	clev,x
+	ldix	ctyp,SPFB		; species = fireball
+
+	clc				; Y_position = lmaph[cseg[x] + lmline[clev[x]]] - FBHEI*2
+	ldy	clev,x
+	lda	lmline,y
+	adc	cseg,x
+	tay
+	lda	lmaph,y
+	sec
+	sbc	#[FBHEI * 2]		; (so fireballs 'leap' out of the barrel)
+	sta	cyh,x
+	jsr	create			; install as live critter in object table
+	inc	nfth			; ++ number of firecritters currently alive
+:punt
+
+;
+; spawn springs in Elevators rack
+;
+	local
+	lda	curscr			; are we in the Elevators rack?
+	cmp	#RKELEV
+	bne	:punt			; (nope, so punt)
+
+	lda	cdspr			; time to create a spring?
+	bne	:punt			; (waitaminute -- not yet!)
+	jsr	fslot			; find a critter slot
+	bcs	:punt			; ("can't happen")
+
+	ldy	cdiff			; reset the creation timer
+	lda	sprdly,y
+	sta	cdspr
+
+;
+; init spring parameters
+;
+	ldix	clev,3			; level = top
+	ldix	ctyp,SPSPR		; species = "spring"
+	lda	lmseg			; create on zeroeth segment
+	sta	cxh,x
+	ldix	cseg,0
+	ldix	cyh,egtop		; and somewhere near the top
+	ldix	cbits,FBRTP		; "Go Right, Young Spring!"
+
+	lda	sprwher			; where to bounce to?
+	and	#3			; (Its just a sequence)
+	tay				; ((It makes no real sense))
+	lda	sprpos,y		; consult our oracle for the
+	sta	ccnt,x			;	starting position,
+	inc	sprwher			;	and increment the oracle
+	jsr	create
+:punt
+
+;
+; create sandpiles in conveyerbelts rack
+;
+	local
+	ldx	curscr			; on conveyerbelts screen?
+	cpx	#rkconv
+	bne	:punt
+
+	lda	cdbsn			; time to create another?
+	bne	:punt			; (nope)
+	lda	sndly,x			; reset creation timer
+	sta	cdbsn
+
+	jsr	fslot			; get a critter slot
+	bcs	:punt			; *sigh* -- none left
+
+	ldix	ctyp,spsand		; species = sandpile
+
+;
+; pick random level, and semirandom side to start at
+;
+	lda	random			; lev 1 or lev 3...
+	bpl	:1
+	ldy	#1			; lev 1
+	lda	cdir			; start on source side of c-belt
+	bmi	:4
+	bpl	:5			; [uncond]
+
+:1	ldy	#3			; lev 3
+	asl	a			; pick side at random
+	bpl	:4
+:5	lda	#0			; start on left side...
+	beq	:3			; [uncond]
+:4	lda	#lmapwid-1		; start on right side...
+:3	sta	cseg,x
+	tya
+	sta	clev,x
+
+	jsr	create			; create the sandpile
+:punt
+	rts
+
+
+;
+; CREATE -- wind up a critter creation
+; Passed: X = critter#
+; Assumes: previous setup in cbits[], ctyp[], clev[], cseg[]
+;
+create	local
+	lda	#0			; state = init_state
+	sta	pstat,x
+	lda	clock			; ensure immediate update
+	adc	#$80			;  by faking a 'starved' condition
+	sta	cupd,x
+	lda	#CTALIV + CTUNDR + CTDISS	; init global status
+	sta	cstat,x			; (invisible + alive)
+	rts				;  all done
+
+
+;
+; FSLOT - find an empty creature slot
+; Passed: nothing
+; Returns: Cf==0 ==> X = empty slot#
+;	   Cf==1 ==> no empty slots
+; Uses: A
+;
+fslot	local
+	clc
+	ldx	#nobjs-1
+:1	lda	cstat,x
+	beq	:r			; an empty slot...
+	dex
+	bne	:1
+	sec				; no empty slots (!)
+:r	rts
+

@@ -1,0 +1,156 @@
+	subttl	'VBH - Vertical blank handler'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;			Vertical Blank Handler			;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; VBH - Immediate vertical blank interrupt handler
+; Passed: Nothing
+; Uses: VBL temps, AXY
+; Updates: selected shadow registers, event timers, sound registers
+;
+vbh	local
+	ldi	dlicnt,0		; zero DLI index
+	mv	nmien,snmien		; update NMIEN from fake shadow
+	mv	hposp0+3,prizpos	; setup pos of PL3 for first prize
+	ldi	vdone,1			; yes, vblank is done...
+
+;
+; Hack attract color shifting
+; This code is blatantly similar to that found in the OS's VBL handler
+;
+	lda	#$fe			; (default no-attract values)
+	ldx	#0
+	inc	rtclok+2		; ++ jiffy count
+	bne	:1
+	inc	rtclok+1		; ++ 256-jiffy count
+	inc	atract			; ++ attract timer
+	bpl	:1a			; >= 0 ==> not in attract mode
+
+:1	ldy	atract			; in attract mode?
+	bpl	:1a			; (no)
+	lda	#$f6			; half intensity
+	sta	atract			; ensure ATRACT stays negative
+	ldx	rtclok+1		; semi-random shifting
+
+:1a	sta	drkmsk
+	stx	colrsh
+
+
+;
+; Debounce the pause key (which is the spacebar)
+;
+	lda	keydb			; key being debounced?
+	bmi	:2			; (no)
+	dec	keydb			; -- jiffy count
+	bpl	:2			; (still not debounced)
+;
+; the key is debounced.  Is it useful?
+;
+	lda	gameon			; ignore if the game isn't running
+	ora	animon
+	beq	:2
+	lda	pausep			; its real, so complement the
+	eor	#$ff			;  pause-mode flag
+	sta	pausep
+
+;
+; Update color registers
+;
+:2	ldx	#8
+:3	lda	pcolr0,x		; get shadow reg
+	eor	colrsh			; shift colors
+	and	drkmsk			; trim brightness
+	sta	colpm0,x		; give it to GTIA, or whatever
+	dex
+	bpl	:3
+
+;
+; Update shadow registers
+;
+	dmv	dlistl,sdlstl		; update Antic's DLIST pointer
+	mv	dmactl,sdmctl
+	mv	prior,gprior
+
+	mv	strig0,trig0		; get joystick triggers
+	mv	strig1,trig1
+
+
+;
+; The joystick trigger has to be debounced under certain circumstances.
+; When OTrig is non_zero, the joystick trigger is invalid until it is
+; released.
+;
+	lda	otrig			; waiting for joystick trigger to go high?
+	beq	:tdb			; (no)
+	ldx	usr			; X = trigger#
+	lda	strig0,x		; is trigger high (inactive?)
+	beq	:tdb			; (no, so its still disabled)
+	ldi	otrig,0			; enable trigger again
+:tdb
+
+	lda	porta			; get joystick values
+	tax				;  joystick #0
+	and	#$0f
+	sta	stick0
+
+	txa				;  joystick #1
+	lsr	a
+	lsr	a
+	lsr	a
+	lsr	a
+	sta	stick1
+
+;
+; Return from VBL if in pause-mode
+;
+	lda	pausep			; check the flag...
+	beq	:5			; (nonzero, so don't pause...)
+
+	jsr	sroff			; first, turn off sound regs
+	jmp	xitvbl			; just vanish
+
+;
+; Test for mutual exclusion with foreground (VBL on/off switch)
+;
+:5	dec	vsem
+	bpl	:6
+	jmp	evbh			; punt if P(VSEM) fails
+:6	inc	clock			; ++ gametime clock
+
+;
+; Hack critter spawning timers
+; These get decremented until they go zero, then the foreground spawning
+;  logic takes over.
+;
+	local
+	lda	cdba			; -- barrel creation ticker
+	beq	:1
+	dec	cdba
+
+:1	lda	cdfth			; -- firecritter creation ticker
+	beq	:2
+	dec	cdfth
+
+:2	lda	cdspr			; -- spring creation ticker
+	beq	:3
+	dec	cdspr
+
+:3	lda	cdbsn			; -- sandpile creation ticker
+	beq	:4
+	dec	cdbsn
+
+:4	ldi	atract,0		; reset ATRACT timer
+
+	jsr	cartvb			; cartoon VB processor
+	jsr	usnd			; update sounds
+evbh	inc	vsem			; release mutex with foreground
+	jmp	xitvbl			; exit from VBL
+	eject
+;
+; Null creature handlers
+;
+uladr
+	rts

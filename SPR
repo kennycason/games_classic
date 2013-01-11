@@ -1,0 +1,167 @@
+	subttl	'Springs'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;			     Springs				;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+	local
+egtop	=	56-8			; top girder - font offset
+
+;
+; velocity of spring, as CDIFF dictates
+;
+:xvell	db	$00, $00, $b0, $00, $00		; low component
+:xvelh	db	$04, $04, $01, $01, $01		; high component
+
+
+;
+; position of spring
+;
+:pos
+	db	egtop-32+0, egtop-32+1, egtop-32+3, egtop-32+5
+	db	egtop-32+9, egtop-32+12, egtop-32+18, egtop-32+24
+	db	egtop-32+31, egtop-32+25, egtop-32+19, egtop-32+12
+	db	egtop-32+9, egtop-32+5, egtop-32+3, egtop-32+1
+:len	=	*-:pos
+
+;
+; USPR - update a spring
+; Passed: X = critter#
+;	  vtmp = lmap offset
+;	  ccstat, ccbits = usual stuff
+; Returns: A = 0 ==> no movement
+;	   A !=0 ==> movement
+;
+uspr
+	lda	alivep			; die if Mario is dead
+	bpl	:1
+
+	lda	ptmode			; ok to disappear?
+	cmp	#PTNROTS
+	blt	:jdie
+	lda	#0			; not yet, so return 'no movement'
+	rts
+
+:jdie	jmp	cridie			; turn ourselves off
+
+;
+; die if below bottom of screen
+;
+:1	lda	cyh,x
+	cmp	#nlines
+	bge	:jdie
+
+	lda	ccstat			; turn ourselves on...
+	and	#$ff-CTDISS		;   ... by un-disappearing
+	sta	ccstat
+
+	lda	pstat,x			; don't hack horz pos if in free-fall
+	bmi	:6			; (in free fall...)
+
+;
+; enter falling mode past edge of the girder
+;
+	lda	cseg,x			; past edge of top level?
+	cmp	#20
+	blt	:2
+	lda	ccnt,x			; at bottom part of arc?
+	cmp	#[:len / 2] - 1
+	bne	:3			; (no)
+
+	ldix	pstat,$ff		; enter free fall
+	bne	:4			; [uncond]
+
+;
+; in free-fall, so hack vertical pos
+;
+:6	clc				; cy. += $300
+	lda	cyh,x
+	adc	#7
+	sta	cyh,x
+	jmp	:c
+
+;
+; almost about to fall, so startup the falling sound
+;
+:3	lda	falfg			; fall sound over?
+	bne	:2			; (no, *sigh*)
+	lda	#0			; yes, so start up a new one
+	sta	vtime
+	ldi	falf3,FALFV
+	ldi	falc3,FALCV
+	sta	falfg
+
+;
+; hack vertical position for bouncing (just get Y_position from a table)
+;
+:2	ldy	ccnt,x
+	lda	:pos,y
+	sta	cyh,x
+	iny
+	cpy	#:len
+	blt	:5
+	ldy	#0
+:5	tya
+	sta	ccnt,x
+
+;
+; startup bounce sound
+;
+	cpy	#[:len / 2]
+	bne	:4
+	lda	sprfg
+	bne	:4
+	ldi	sprfg,sprlen
+
+;
+; hack horizontal movement
+;
+:4	ldy	pstat,x			; Y = current x_velocity
+	bmi	:c			; negative, so punt (falling)
+	ldy	cdiff			; x_velocity depends on difficulty
+	lda	:xvell,y		; A = LSB of x_velocity
+	pha
+	lda	:xvelh,y		; Y = MSB of x_velocity
+	tay
+	pla
+	jsr	cmovex			; move the spring
+
+;
+; compute font# for position on screen
+; (animation sequence should make it look like a 'bounce' effect...
+;
+:c	lda	pstat,x			; in free-fall?
+	bmi	:9			; (yes)
+	lda	cseg,x			; or past edge of girder?
+	cmp	#20
+	blt	:7			; (no)
+
+:9	ldix	cmode,FNSPR		; use straight-up font
+	jmp	deltap			; and go redraw...
+
+:7	sec				; A = egtop - cyh[x]
+	lda	#egtop
+	sbc	cyh,x
+	bpl	:11			; range A in 0..7
+	lda	#0
+	beq	:10			; [uncond]
+:11	cmp	#8
+	blt	:10
+	lda	#7
+
+:10	tay				; cmode[x] = :ftab[A]
+	lda	:ftab,y
+	sta	cmode,x
+
+:8	jmp	deltap			; bye bye -- see you next vbl
+
+
+;
+; Fonts to use for the 'bounce' animation sequence
+; (The spring flattens out as it nears the girder)
+;
+:ftab	db	fnspr+3, fnspr+3
+	db	fnspr+2, fnspr+2
+	db	fnspr+1, fnspr+1
+	db	fnspr, fnspr

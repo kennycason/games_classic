@@ -1,0 +1,6 @@
+comment
+comment		Make a version of DK
+comment
+
+delbat camac
+camac chdr s,h=ca.out

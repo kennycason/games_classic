@@ -1,0 +1,372 @@
+	subttl	'Kong'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;				Kong				;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; This ENTIRE file is a single local enviroment.
+;
+	local
+
+;
+; bits used in the facing-state variable KONGB[1]
+;
+;	+-------+-------+-------+-------+-------+-------+-------+-------+
+;	|       |       |       |       |       |       |       |       |
+;	| Head  | Head  | R-arm | R-arm | L-arm | L-arm | Feet  | Feet  |
+;	| enable| type  | enable| type  | enable| type  |     0 |     1 |
+;	|       |       |       |       |       |       |       |       |
+;	+---7---+---6---+---5---+---4---+---3---+---2---+---1---+---0---+
+;
+khe	=	%10000000		; head enable
+khtyp	=	%01000000		; 0 = normal, 1 = grinning
+rarme	=	%00100000		; right arm enable
+rarmt	=	%00010000		; 0 = down, 1 = up
+larme	=	%00001000		; left arm enable
+larmt	=	%00000100		; 0 = down, 1 = up
+feetm	=	%00000011		; 00 = empty, 01 = normal,
+					; 10 = left up, 11 = right up
+
+;
+; FKONG - draw forward-facing vanilla Kong
+; Passed: kongx, kongy = Kong's position
+; Uses: AXY, vdraw temps or draw temps
+; Note: KONGB will probably not reflect reality after this call is
+;	made.
+;
+fkong	lda	#khe+rarme+larme+%01	; A = vanilla kong_bits
+	ldx	#0
+	stx	kongb
+
+;
+; PCKONG -  redraw facing-kong from pieces
+; Passed: A = enable bits
+;	  kongx, kongy = x,y position of Kong
+; Returns: nothing
+; Uses: vdraw temps, AXY
+;
+pckong
+	tax				; kongb ~= A
+	eor	kongb
+	sta	kongb
+	txa
+	bpl	:pc1			; $80 = 0 ==> don't refresh head
+	assert	khe = $80
+
+;
+; refresh head
+;
+	pha				; save pieces bits
+	ldx	#high khead0
+	ldy	#low khead0
+	and	#khtyp
+	beq	:pchd1
+	ldx	#high khead1
+	ldy	#low khead1
+:pchd1	stx	vsrc+1			; vsrc -> font
+	sty	vsrc
+	ldx	#4			; head offset = (4,0)
+	ldy	#0
+	jsr	:koffs			; EOR head font
+	pla
+
+;
+; refresh right-arm pieces
+;
+:pc1	pha
+	and	#rarme + rarmt		; right arm enabled?
+	beq	:pc2			; (nope...so punt)
+	and	#rarmt			; arm goes up?
+	bne	:pcra1			; (yes)
+
+	lda	#high krarmd		; arm goes down...
+	ldx	#low krarmd
+	ldy	#7
+	bne	:pcra2			; [uncond]
+
+:pcra1	lda	#high krarmu		; arm goes up...
+	ldx	#low krarmu
+	ldy	#3
+
+:pcra2	sta	vsrc+1			; vsrc -> arm font
+	stx	vsrc
+	ldx	#8			; x = common x_offset
+	jsr	:koffs			; EOR the arm
+
+;
+; refresh left-arm peices
+;
+:pc2	pla
+	pha
+	and	#larme + larmt	; left arm enabled?
+	beq	:pc3			; (nope...so ignore it)
+	and	#larmt
+	bne	:pcla1
+
+	lda	#high klarmd		; arm goes down...
+	ldx	#low klarmd
+	ldy	#7
+	bne	:pcla2			; [uncond]
+
+:pcla1	lda	#high klarmu		; arm goes up...
+	ldx	#low klarmu
+	ldy	#3
+
+:pcla2	sta	vsrc+1			; vsrc -> font
+	stx	vsrc
+	ldx	#0			; x = common x_offset
+	jsr	:koffs
+
+;
+; refresh feet peices
+;
+:pc3	pla				; X = A & feet_mask
+	and	#feetm
+	tax
+	tldx	vsrc,:ftb		; vsrc -> feet font to EOR
+	ldx	#0			; x_offset = 0
+	ldy	#20			; y_offset = 20
+
+;
+; draw the kong font vsrc points to
+; at the point (X + Kongx, Y + Kongy)
+;
+:koffs	clc				; X += kongx
+	txa
+	adc	kongx
+	tax
+
+	clc				; Y += kongy
+	tya
+	adc	kongy
+	tay
+
+;
+; if drawing Kong from a cartoon, then use vanilla Draw()
+; otherwise, EOR Kong into graphics mem
+;
+	lda	seqflg			; nonzero ==> in cartoon
+	bne	:kdraw
+	jmp	vdraw			; go EOR the font into display mem
+:kdraw	mv	src,vsrc		; src -> font (*sigh*)
+	jmp	draw
+
+
+:ftbl	db	low blank, low kfeet0, low kfeet1, low kfeet2
+:ftbh	db	high blank, high kfeet0, high kfeet1, high kfeet2
+	eject
+;
+; UKONG - update the gorrilla
+; Passed: nothing
+; Uses: AXY, vdraw/draw temps, tmp?
+; Imports: Kong fonts, cdba, stamp_fx_stuff, clock
+; Updates: bacnt, nba, critter_creation_stuff
+; Notes:
+;	kstate < 0: Kong is stamping
+;	kstate = 0: Kong normal activity (just_standing)
+;	kstate > 0: Kong in barrel_throwing animation [Ramps only]
+;
+ukong
+	ldx	kstate			; is Kong stamping?
+	bpl	:uk1			; (no)
+
+;
+; update Kong stamping fx
+;
+	dec	ktimer			; -- delay timer
+	bpl	:r			; (wait)
+	lda	:use,x			; get new Kong pieces onto stack
+	pha
+	lda	:mask,x			; erase some pieces of Kong
+	jsr	pckong
+	pla
+	jsr	pckong			; draw the new pieces
+	inc	kstate			; ++ state
+	beq	:r			; punt if back to normal activity
+	ldi	ktimer,20		; set delay timer
+	ldi	stpfg,stplen		; startup new "-> Stamp! <-" fx
+:r	rts
+
+;
+; Update vanilla Kong
+;
+:uk1	lda	curscr			; on Ramps screen?
+	beq	:ramps			; (yes)
+	assert	RKRAMP = 0		; [for simple BEQ to work]
+
+;
+; wakeup and stamp every 256 jiffies.
+;
+	lda	clock
+	cmp	#$c8			; [arbitrary jiffy timer value]
+	bne	:r
+
+:stamp	ldi	kstate,$fc		; setup font-transition index
+	ldi	ktimer,0		; reset change_font timer
+	rts
+
+;
+; Update Kong on Ramps screen
+; - Reaches back and forth, carrying barrels and dropping them on Mario
+; - Occasionally stops, stamping & roaring
+;
+:ramps	txa				; [simple test for KState]
+	bne	:r1			; (update barrel-reaching animation)
+
+;
+; if its time, then setup to spawn a barrel
+;
+	lda	cdba			; barrel creation timer hit bottom?
+	bne	:stest			; no...so see if time to stamp
+
+	ldy	cdiff			; reset barrel_creation_timer
+	lda	sbadly,y
+	sta	cdba
+	ldx	#0
+	stx	ktimer			; reset change_font timer
+
+	lda	bacnt			; first barrel *must* fall
+	beq	:r3a
+	lda	random
+	cmp	sbadiff,y		; otherwise, consult the oracle
+	bge	:r2			; (don't fall)
+
+:r3a	lda	random			; 50% of barrels travel horizontally
+	and	#BBHORZ
+	beq	:r3
+	lda	random			; a = random&(BBMEAN+BBMAG)
+	and	#BBMEAN+BBMAG
+	ora	#BBHORZ			; a |= BBHORZ
+:r3	ora	#BBFALL
+	tax
+
+;
+; every 8th barrel is a beam...
+;
+:r2	lda	bacnt
+	and	#7
+	bne	:r2a
+	txa
+	ora	#BBEAMP
+	tax
+:r2a	stx	kcrit			; install critter type
+	inc	kstate			; startup reaching_animation
+:rr	rts
+
+;
+; stamp every 8th barrel or so....
+;
+:stest	lda	bacnt			; time to stamp?
+	and	#7
+	cmp	#6			; [arbitrary -- stamp every 8th barrel or so]
+	bne	:rr			; don't stamp yet...
+	jmp	:stamp
+
+
+;
+; animate Kong
+; - reaching to the right, for a barrel
+; - standing with a barrel
+; - reaching to the left with a barrel (optional)
+; - spawn the barrel
+;
+:r1	dec	ktimer			; -- anim delay
+	bpl	:r
+
+	lda	kongb			; undraw facing-fonts
+	beq	:r9
+	jsr	pckong
+	ldx	kstate			; [restore x=kong_state]
+
+:r9	lda	:ktbh,x			; undraw reaching-fonts
+	beq	:r4
+	sta	vsrc+1
+	lda	:ktbl,x
+	sta	vsrc
+	ldx	kongx
+	ldy	kongy
+	jsr	vdraw
+
+:r4	ldx	kstate			; if falling barrel, then skip
+	cpx	#3			;   the reach-right font
+	bne	:r5
+	lda	kcrit
+	and	#BBFALL
+	beq	:r5
+	inc	kstate
+
+:r5	inc	kstate			; next state, please
+	ldi	ktimer,20		; set the anim delay timer
+
+	ldx	kstate			; redraw Kong
+	lda	:ktbl,x
+	ldy	:ktbh,x
+	bne	:r6a
+	jsr	pckong
+	jmp	:r6
+:r6a	sta	vsrc
+	sty	vsrc+1
+	ldx	kongx
+	ldy	kongy
+	jsr	vdraw
+
+:r6	lda	kstate			; if at final state, then spawn the barrel
+	cmp	#5
+	bne	:rr
+
+	ldi	kstate,0		; reset to normal_state
+	jsr	fslot			; find a critter slot
+	bcs	:rr			; (punt if error)
+
+	ldy	#lmapwid-7		; assume rolling...
+	lda	kcrit
+	and	#BBFALL
+	beq	:r7
+	ldy	#lmapwid-5		; its falling, so adjust starting_segment
+:r7	tya
+	sta	cseg,x
+	ldix	clev,nlmapln-2		; setup starting level
+	ldix	ctyp,SPBAR		; init critter species
+	lda	kcrit			; install magic_bits
+	sta	cbits,x
+	inc	nba			; ++ barrel population count
+	inc	bacnt			; ++ barrels_created count
+	jmp	create			; go create the barrel...
+
+
+;
+; table of kong-font masks for stamping
+;
+:mask	=	* - $fc
+	db	rarme + feetm			; right arm down
+	db	rarme+rarmt + larme + feetm	; right arm up, left arm down
+	db	rarme + larme+larmt + feetm	; right arm down, left arm up
+	db	rarme+rarmt + feetm		; right arm up
+
+;
+; table of kong-fonts for stamping
+;
+:use	=	* - $fc
+	db	rarme+rarmt + %10		; right arm up
+	db	rarme + larme+larmt + %11	; right arm down, left arm up
+	db	rarme+rarmt + larme + %10	; right arm up, left arm down
+	db	rarme + %01			; right arm down
+
+;
+; kong fonts for throwing or rolling a barrel
+; if :ktbh[i] == 0 then :ktbl[i] is the facing-font to use
+;
+:ktbh	=	*-1
+	db	0			; don't draw font
+	db	high krkong		; face right
+	db	0			; standing
+	db	high klkong		; face left
+	db	0			; standing (and final state)
+
+:ktbl	=	*-2			; first entry is "don't care"
+	db	low krkong		; facing right
+	db	khe+rarme+larme+%01	; standing
+	db	low klkong		; facing left
+	db	khe+rarme+larme+%01	; standing again
