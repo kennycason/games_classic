@@ -1,0 +1,326 @@
+	eject
+	title	'Donkey Kong  Thur Feb 24, 1983'
+
+	link	d:test		; testing code
+
+	if	false
+
+	link	d:play		; top level PLAY module, foreground
+
+
+	endif
+
+	link	d:kong
+	link	d:dli		; DLI handlers
+
+	if	1<0
+
+
+	link	d:spawn		; foreground spawning stuff
+
+
+	endif
+
+	link	d:vbh		; vblank driver
+	link	d:snd		; sound drivers
+
+
+	if	1<0
+
+
+	link	d:sched		; critter update scheduler
+	link	d:crit		; critter common code
+	link	d:bar		; barrels
+	link	d:fb		; fireballs, firefoxen
+	link	d:spr		; spring animation [boink! -ed]
+	link	d:prot1		; Mario
+	link	d:prot2		; Mario, continued.
+	link	d:rmriv		; Rivet removal
+	link	d:elev		; Elevator platform update
+	link	d:anim		; Random animation (explosions, etc.)
+	link	d:collis	; Collision detection
+
+
+	endif
+
+	link	d:draw		; pixel engines
+	link	d:scrgen	; screen generation
+;	link	d:cart		; cartoons
+	link	d:cartun
+	link	d:misc		; cruft
+
+
+	if	1<0
+
+	link	d:altorg	; *** ORG for 16K overflow ***
+
+
+	endif
+
+	link	d:sndtbl	; sound tables
+	link	d:fonts		; cute bit-maps
+
+
+	if	1<0
+
+	link	d:mario.fnt	; fonts for Mario, Hammer
+
+	endif
+
+	link	d:kong.fnt
+	link	d:lady.fnt	; playfield for Lady
+
+
+	if	false
+	link	d:barrel.fnt	; rolling barrel fonts
+	link	d:fbarrel.fnt	; falling barrel fonts
+	link	d:fthings.fnt	; Fire-thingies (fireballs, firefoxen)
+	link	d:spring.fnt	; springs
+
+	link	d:kongdata.fnt	; kong fonts
+	link	d:kickdata.fnt	; Lady kicking fonts
+
+	endif
+
+	link	d:end		; wraps everything up
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;                                                                   ;;
+;;			    D O N K E Y                              ;;
+;;			      K O N G				     ;;
+;;								     ;;
+;;                                                                   ;;
+;;Just when you thought it was safe to come back from the arcades....;;
+;;                                                                   ;;
+;;Perpetrator: Landon Dyer                                           ;;
+;;                                                                   ;;
+;;HISTORY:                                                           ;;
+;;Nov '82 - IDS, initial coding					     ;;
+;;Dec '82 - more coding, hair pulling, general cruftiness 	     ;;
+;;Jan '83 - schedule screaming, rampant insanity, accusations	     ;;
+;;Feb '83 - semi-winnage, accompanied by cries of anguish and threats;;
+;;Mar '83 - Lucifer announces a cooling trend			     ;;
+;;                                                                   ;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;
+;
+
+	list	i		; (lets list includes, too)
+	include	d:glob		; get global defs
+	eject
+	org	codbas		; This is a good place to start....
+	if	debug		; an easy entry point to remember
+	jmp	main
+	endif
+	include	d:tables	; put tables at start
+	eject
+	subttl	'Main - top level driver'
+rts	rts
+	include	d:log.tmp
+;
+; MAIN - initialization and top-level
+;	Passed: control by OS
+;	Returns: never
+;	Calls: just about everything
+;
+	proc
+main
+	if	[def dbug]		; init DBUG if its installed
+	jsr	dbugi
+	jsr	dbug
+	endif
+
+;
+; Pokey init (once only)
+;
+	lda	#3
+	sta	skctl		; enable only keyscan and debounce
+	sta	sskctl
+	lda	#0		; clobber everything in AUDCTL
+	sta	audctl
+
+;
+; Clear zero-page locs
+;
+	ldx	#0
+	txa				; zero upper half of zero-page
+:3	sta	zpbase,x
+	inx
+	bpl	:3
+
+;
+; zero global area
+; (Probably not zeroed by OS powerup init routine, sooo....)
+;
+	ldx	#globlen-1
+:4	sta	glob,x
+	dex
+	bpl	:4
+
+	jsr	sndoff			; turn off sounds
+
+;
+; init globals: shadows and some hardware registers
+;
+	dec	keydb			; init debounce counter
+	dldi	sdlstl,nulldl		; point at null Dlist for now
+	ldi	sdmctl,$3e		; enable PM DMA, et al
+	ldi	gractl,3		; turn on players and missiles
+	ldi	gprior,%00110010	; setup graphics priority
+	ldi	pmbase,high pmb		; setup player/missile base
+
+	if	debug
+	ldi	snmien,$40
+	else
+	ldi	snmien,$c0		; enable DLIs, set fake NMIEN shadow
+	endif
+
+	if	not def dbug		; NOT with DBUG installed...
+	ldi	pokmsk,%01000000	; enable only keyboard IRQs
+	sta	irqen
+	dldi	vkeybd,kbdint		; setup keyboard intr vector
+	endif
+
+	jsr	cldisp			; clear display and P/M mem
+
+	ldx	#8			; setup color shadows
+:2	lda	colors,x
+	sta	pcolr0,x
+	dex
+	bpl	:2
+
+;
+; Setup the display address tables.
+; Starting at a 4K-boundary plus $100 avoids
+; having to do an offsetted reload instruction for the /first/ 4K boundary.  Since
+; DK only uses 198 scanlines, the code that generates the addr table
+; doesn't have to check for crossing a 4K boundary
+;
+	local
+	dldi	tmp,gbase
+	ldx	#0
+:1	lda	tmp			; install this line's addr
+	sta	addrl,x
+	lda	tmph
+	sta	addrh,x
+	dadi	tmp,bwide		; next line, please
+	inx
+	cpx	#nlines			; at end of dlist?
+	blt	:1
+
+;
+; Fill up the rest of the display address table with pointers to garbage.
+; (This is so clipping is done properly at the top and bottom of the
+;  screen).
+;
+; NB: This could also point into the cartridge space, as one facet of
+;     copy protection.  That way, DRAWs clipping on the top or bottom
+;     of the screen will attempt to store into cartridge mem....
+;
+:3	lda	#low garbage
+	sta	addrl,x
+	lda	#high garbage
+	sta	addrh,x
+	inx
+	bne	:3
+
+;
+; Setup the playfield mask table
+; PFMSK contains a '00' bit pair if the index into the table contains
+;  a '01', '10' or '11' bit pair, for each of the four pairs in a byte.
+; This mask table is used to extract pixels, by appropriate ANDing
+;  and EORing source and destination bytes.
+;
+	local
+	ldx	#0
+:1	txa				; get current table index
+	asl	a			; Shift up and mask bits
+	and	#$aa
+	sta	tmp
+	txa				; Shift down and mask bits
+	lsr	a
+	and	#$55
+	ora	tmp			; Or-in to shifted up bits
+	sta	tmp
+	txa
+	ora	tmp			; Or-in original bits,
+	eor	#$ff			;  complement them,
+	sta	pfmsk,x			;   and save in mask table
+	dex
+	bne	:1
+
+;
+; setup BLUMSK, the PF0 <--> PF1 translation table
+;
+	local
+:2	ldy	#3			; # of bit-pairs to munge
+	stx	tmp
+:4	lda	tmp			; lets look at the low pixel
+	and	#%11
+	beq	:6			; ignore if BAK or PF2
+	cmp	#%11
+	beq	:6
+	lda	tmp			; swap PF0 and PF1
+	eor	#%11
+	sta	tmp
+:6	lda	tmp			; shift pixel to top of byte
+	lsr	a
+	ror	tmp
+	lsr	a
+	ror	tmp
+	dey				; -- shift count
+	bpl	:4
+	lda	tmp			; shove munged byte into table
+	dex
+	bne	:2
+
+;
+; install VBH vector, as immediate vblank
+;
+	lda	#immvbl			; setup immediate VBL vector
+	ldx	#high vbh
+	ldy	#low vbh
+	jsr	setvbv
+
+;
+; This is the top-level loop, for driving the three basic screens
+; (title screen, setup screen, demonstration mode)
+;
+	local
+	jsr	test			; call test code....
+
+:loop
+	ldi	pausep,0		; abort possible pause-mode
+	jsr	abortp
+	bne	:1
+	jsr	title
+:1	jsr	setup
+	jmp	:loop
+
+;
+; Jump-indirect through TMP.  Usually used to fake an indirect JSR
+;
+jtmp	jmp	(tmp)
+
+
+;
+; TITLE - Show the title screen.  Timeout after 3s, or if there is any
+;	  user activity
+; Passed: nothing
+; Uses: tmp*, CURSCR
+; Imports: lettering fonts, title font
+;
+title	local
+	rts
+
+
+;
+; SETUP - Handle the setup screen.  Hack [Start], [Option] and [Select]
+;	  switches.  SETUTI is the number of 256 jiffies before timing
+;	  out and returning
+; Passed: nothing
+; Uses: tmp*, CURSCR
+; Updates: DIFF, NPLYRS
+; Calls: PUTS, PUTC, SCRGEN, PLAY, DCONSW
+;
+setup	rts

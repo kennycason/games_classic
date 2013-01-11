@@ -1,0 +1,365 @@
+	subttl	'Cartoons'
+;
+; Cartoon drivers
+; Written by Vince Wu and Richard Harvey
+;
+
+;
+; intro cartoon
+;
+icart0	local
+;
+; Draw straight girders -- no ladders.
+;
+	lda	#RKCRT1
+	ldx	#0		;straight girders screen
+	jsr	scrgen
+
+	ldi	tmp1h,nlmapln-1	; clear top girder
+	jsr	clgird
+
+
+; draw Nelly
+;
+	dldi	src,Nell0
+	ldx 	#124
+	ldy 	#27
+	jsr 	DRAW
+
+;
+; draw Kong
+;
+	ldy 	#29		;init Kongy
+	sty 	Kongy
+	ldx 	#24  		;init Kongx, too...
+	stx 	Kongx
+	jsr	fkong
+
+;
+; Startup introduction music
+; Turn on vblank code
+;
+	ldi	intfg,intle1
+	ldi	music2,intle2
+	inc	vsem		; perform V(Vsem)
+
+:intun
+	jsr	consw
+	bne	:cexit		; console key pressed
+	lda	intfg		; wait til finished tune
+	bne	:intun
+
+;
+; unpack "vanilla" sounds (for stamp & grin)
+;
+;	jsr	expnds
+
+;
+; Kong jumps five times
+;
+	lda 	#4
+	sta 	Repcnt
+BTOP	ldi	tmp1h,nlmapln-2		; setup for top-1th girder bend
+
+:JLOOP	lda 	#8		;init :FTAB pointer
+	sta 	Ftabpt
+
+	lda 	#1		; do jump in vbl
+	ldx	#2
+	jsr	:INVB
+	bne	:cexit		; console key pressed, quit-->
+
+	lda 	#STPLEN		; turn on stomp sound
+	sta	stpfg
+
+;
+; BNEXT - bend next girder
+;
+BNEXT
+	jsr	clgird
+
+	ldx	tmp1h			; bend the lmap
+	jsr	slant
+
+	lda	#lmapwid		; show the world, A = segment count
+	ldx	#0			; X = starting segment#
+	ldy	tmp1h			; Y = lmap line to (re)draw
+	dec	tmp1h			; -- level# for next time
+	jsr	dgird			; redraw the line of girders
+					;  only slanted
+	dec 	Repcnt		;count this jump
+	bpl 	:JLOOP
+
+	lda 	#33		;wait a bit...
+	jsr 	sleep
+
+;
+; Kong grins
+;
+	lda	#khe		;show grin image
+	jsr	pckong
+	lda	#khe + khtyp
+	jsr	pckong
+	lda 	#3		; sound grin Thrice...
+	sta 	Repcnt
+
+:G1	lda 	#GRNLEN		; startup grin sound
+	sta	grnfg
+	lda 	#46		; wait for a while
+	jsr 	sleep
+	dec 	Repcnt		; -- count
+	bne 	:G1
+
+:cexit
+	dec	vsem		; P(Vsem) -- turn off vbl code
+	jmp	sndoff		; exit, turning off all sounds
+
+	eject
+;
+; the 'broken-heart' cartoon
+;
+icart1
+;
+; draw the heart
+;
+	dldi	src,Heart
+	ldx	#72
+	ldy	#0
+	jsr	DRAW
+
+	jsr	clkong
+
+	ldy	#$1f		;+2, vblank decrement before drawing
+	sty	Kongy
+	ldy	#$2a		;Nelly = Kongy + 11, but in this case
+	sty	Nelly		;  Kongy += 2, hence Nelly = Kongy + 13
+	ldx 	#104
+	stx 	Kongx
+	ldx	#116		; Nellx = Kongx + 12
+	stx	Nellx
+				; erase Nelly
+
+	jmp	:cexit
+
+;
+; 'spawn' vblank routine & wait til vblank routine finished
+; returns: Z flag = 0, if normal
+;		  <>0, if console key pressed
+;
+:INVB
+	stx	Jiflg1
+	sta 	Seqflg		; Select Vblank Routine...
+
+:INVB1
+	jsr	consw		; console key pressed?
+	bne	:ycons		; yes-->
+
+	lda	Seqflg		; Wait until Vblank Routine is finished.
+	bne	:INVB1
+:ycons
+	rts
+	eject
+;
+; Kong falling cartoon
+;
+ICART2	dldi	src,cgirfak	; clear the girders
+	ldx	#40
+	ldy	#41
+	jsr	clear
+
+;
+; Redraw girders at the bottom of the Ziggurat structure
+;
+	dldi	src,fgird3		; src -> girder flavor to use
+	ldi	tmp2h,4			; tmp2h = level count
+	ldi	tmp2,nlines-[GRHEI*2]		; tmp2 = y_position
+
+:gird1	ldi	tmp3,[7*6] + 4		; tmp3 = x_position
+	ldi	tmp3h,12		; tmp3h = girder count
+
+:gird2	ldx	tmp3			; draw a girder at (tmp3, tmp2)
+	ldy	tmp2
+	jsr	draw
+
+	clc			; tmp3 += GRWID
+	lda	tmp3
+	adc	#GRWID
+	sta	tmp3
+	dec	tmp3h			; -- girder count
+	bne	:gird2
+
+	sec			; tmp2 -= GRHEI
+	lda	tmp2
+	sbc	#GRHEI
+	sta	tmp2
+	dec	tmp2h			; -- level count
+	bne	:gird1
+
+;
+; Draw Kong upside-down
+;
+	clc
+	lda	Kongy
+	adc	#62
+	sta	yi		; destination row ctr
+	ldi	hei,31
+:flip0
+	ldi	rn,6		; Kong is 6 bytes wide
+	ldy	Kongy		; get source row memory addr
+	tldy	src,addr
+	ldy	yi		; get destination row memory addr
+	tldy	dest,addr
+	ldy	#18		; get w/i row bias
+:flip1
+	lda	(src),y
+	sta	(dest),y
+	lda	#0
+	sta	(src),y		; clear out source byte
+	iny
+	dec	rn		; finished 6 bytes?
+	bne	:flip1		; no-->
+	dec	yi		; move up 1 destination row
+	inc	Kongy		; move down 1 source row
+	dec	hei		; finished 31 rows yet?
+	bne	:flip0		; no-->
+
+;
+; Move Kong down
+;
+	inc	vsem		; invoke vertical blank
+	lda	#falfv		; invoke fall sound
+	sta	falf3
+	lda	#falcv
+	sta	falc3
+	ldx	#0
+	stx	vtime
+	inx
+	inx
+	stx	falfg
+	txa			; Select :FALL routine.
+	jsr	:INVB
+	ldi	stpfg,stplen
+:crsnd
+	lda	stpfg
+	bne	:crsnd
+	jmp	:cexit
+
+:END
+	rts
+	eject
+;
+; Cartoon vbl drivers
+;
+CARTVB	ldx 	Seqflg		; get vbi seq #
+	beq 	:END
+	dec	Jiflg1		; ck cartun countdown timer
+	bpl	:END
+
+	dex
+	bne	:FALL
+
+
+;
+; Jump
+; Kong hopss by :FTAB/jiffy.
+;
+:JUMP
+	dec 	Ftabpt		; started w/ #8
+	bmi 	:Fend		; end 1 jump-->
+	jsr 	clkong		; Clear Kong's previous image
+
+	ldx	Ftabpt		; started w/ #8
+	ldy	:FTAB,x
+	sty	Kongy
+	ldx	Kongx
+	inx
+	inx
+	stx	Kongx
+	jsr	fkong
+:JRTN1
+	ldx	#2
+:JRTN
+	stx	Jiflg1
+	rts
+
+;
+; Fall
+;
+:FALL
+	ldy	Kongy
+	iny
+	iny
+	cpy	#137
+	bcc 	:FALL1
+:Fend
+	lda	#0
+	sta 	Seqflg		; If at bottom then turn of this seq
+	rts
+
+:FALL1	sty	Kongy
+	tya			; CARRY already reset
+	adc	#31		; move downward, need to do it backward
+	sta	yi		; destination row ctr
+	tay
+	dey
+	dey
+	sty	tmp		; sorce row ctr = dest - 2
+	ldi	hei,32
+
+:FALL2	ldi	rn,6		; Kong is 6 bytes wide
+	ldy	tmp		; get source row memory addr
+	tldy	src,addr
+	ldy	yi		; get destination row memory addr
+	tldy	dest,addr
+	ldy	#18		; w/i row bias
+:FALL3
+	lda	(src),y
+	sta	(dest),y
+	lda	hei		; only zero the top 2 rows
+	cmp	#3
+	bcs	:FALL4
+	lda	#0
+	sta	(src),y		; clear out source byte
+:FALL4
+	iny
+	dec	rn		; finished 6 bytes?
+	bne	:FALL3		; no-->
+	dec	yi		; move up 1 destination row
+	dec	tmp
+	dec	hei		; finished 32 rows yet?
+	bne	:FALL2		; no-->
+	ldx	#1
+	bne 	:JRTN		; uncond-->
+
+
+; clear girder
+; input: tmp1h = girder level number
+;
+clgird
+	ldi	tmp2,bwide		; tmp2 = width_of_screen
+	ldi	tmp2h,GRHEI		; tmp2h = hei of girder segment
+	dldi	src,tmp2		; src -> tmp2
+	ldy	tmp1h			; y = lmaph[lmline[tmp1h]]
+	ldx	lmline,y		;   = hei of line of girders
+	ldy	lmaph,x
+	ldx	#0			; x_pos = 0
+	beq	jclr			; clear line of straight girders
+                                        ;   uncond-->
+
+
+; clear kong image
+; inputs: KongX,Y
+;
+clkong
+	dldi	src,Klkong		;dummy arg for CLEAR
+	ldy	Kongy
+	ldx	Kongx
+jclr
+	jmp	clear			; implied RTS
+;
+; table of y_positions for float, down, & jump routines
+;
+:FTAB	db	29,26,24,23,22,23,24,26
+
+
+cgirfak	db	21,150

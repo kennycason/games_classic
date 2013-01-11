@@ -1,0 +1,7 @@
+comment
+comment		Make a version of DK with listing to MAIN.PRN
+comment
+
+delbat camac
+del main.prn
+camac chdr s,L=cmain.prn,sl=130,r=f,h=ca.out

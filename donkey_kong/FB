@@ -1,0 +1,432 @@
+	subttl	'FireThings'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;							;;
+;;		Fireballs and FireFoxen			;;
+;;							;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; CBits equates
+;
+FBRTP	=	%10000000		; 1 ==> going right, or down
+FBHYST	=	%01000000		; 1 ==> don't climb ladders
+FBFLEV	=	%00100000		; 1 ==> following Pt's level
+FBFSEG	=	%00010000		; 1 ==> following Pt's segment
+FBFFOX	=	%00001000		; 1 ==> we're a firefox
+
+;
+; states
+;
+fsinit	=	0			; init stuff
+fsnorm	=	fsinit+1		; normal movement
+fsladr	=	fsnorm+1		; on a ladder
+fsleap	=	fsladr+1		; leaping into the fray
+fsdie	=	fsleap+1		; dying
+	assert	fsladr = globlad	; export to Mario's jumpover code
+
+;
+; randoms
+FBHEI	=	16			; hei of firething graphics
+
+;
+; velocities
+; (migrate to tunables...)
+;
+fbhvel	dw	$c0, $b0, $d0 ,$100,$140
+fbvvel	dw	$c0,$c0,$d0,$e0,$f0
+
+
+;
+; UFB - update a fireball or firefoxen
+; Passed: X, ccrit = critter#
+;	  ccbits = creature's magic bits
+;	  ccstat = creature's public state
+;	  vtmp = index to lmap
+; Returns: A = 0 ==> no movement
+;	   A!=0  ==> movement
+; Uses: critter temps, AXY, vtmp*
+;
+ufb	local
+	lda	pstat,x			; in die-state?
+	cmp	#FSDIE
+	beq	:1			; yes, so get right to it
+
+	lda	ccstat			; are we dead? (hit by the hammer)
+	bmi	:2			; yep...let's go 'way...
+
+	lda	alivep			; is Mario still alive?
+	bpl	:1			; (yes)
+	lda	ptmode			; is he far enough along?
+	cmp	#ptnrots
+	blt	:2			; yes, so dissappear
+	lda	#0
+	rts
+
+;
+; Erase self, since Mario has died
+;
+:2	lda	ccstat			; no, so let's go away...
+	ora	#CTDISS			; /After/ we dissappear...
+	sta	ccstat
+	lda	#FSDIE			; setup 'die' state
+	sta	pstat,x
+	dec	nfth			; -- number of firecritters
+
+:1	ldy	pstat,x			; switch(pstat[x])
+	tldy	vtmp1,:jtbl
+	jmp	(vtmp1)
+
+:jtbll	db	low fhinit, low fhnorm, low fhladr
+	db	low fhleap
+	db	low cridie
+
+:jtblh	db	high fhinit, high fhnorm, high fhladr
+	db	high fhleap
+	db	high cridie
+	eject
+; Init a firebeastie
+; - Fireballs 'leap' out of their firebarrel,
+; - Firefoxen don't do anything much
+;
+fhinit	local
+	lda	#$100 - FBHEI		; A = 2's compl firething hei
+	jsr	crinit			; setup ccstat,cxh,cyh
+	lda	ccbits
+	and	#FBFFOX			; who are we?
+	beq	:1			; (a fireball...)
+
+	inc	pstat,x			; 'normal' movement
+	lda	btimer
+	sta	ccnt,x
+	ldix	cmode,fnfif		; setup firefox font
+	rts
+
+:1	ldix	pstat,fsleap		; leap out into the fray...
+	ldix	ccnt,19			; init hei table index [wired]
+	ldix	cmode,fnfib		; setup fireball font
+	rts
+	eject
+; The Leaping Fireball
+; I guess there's some significance.  Anyway, the little buggers are
+;  supposed to look like they are being blasted out of the firebarrel.
+;
+fhleap	local
+	sec				; move vertically
+	ldy	vtmp			; cyh = lmaph[vtmp]-:heitb[ccnt[ccrit]]
+	lda	lmaph,y
+	ldy	ccnt,x
+	sbc	:heitb,y
+	sbc	#FBHEI
+	sta	cyh,x
+	dec	ccnt,x			; -- leap seq
+	bpl	:1			; (not done yet)
+;
+; enter normal state...
+;
+	ldix	pstat,FSNORM
+	lda	btimer			; ensure immediate restrategy
+	sta	ccnt,x
+	jmp	fhnorm
+
+;
+; hack horizontal position
+;
+:1	lda	cdiff			; Y = cdiff << 1
+	asl	a
+	tay
+	lda	fbhvel,y		; AY = fbhvel[y,y+1]
+	pha
+	lda	fbhvel+1,y
+	tay
+	pla
+	jsr	cmovex			; hack horizontal movement
+	jmp	deltap			; return "movement"
+
+;
+; table of height values to subtract from the lmap level's vertical
+; position, for the leap
+; the length of this table is wired-in to the critter init code (sigh)
+;
+:heitb	db	 0, 0, 0, 0
+	db	 1, 1, 2, 2
+	db	 3, 4, 5, 6
+	db	 6, 7, 8, 9
+	db	11,12,13,14
+	eject
+; Moving up and down ladders
+; - downward movement is twice upward movement
+;
+fhladr	local
+	sec
+	ldy	vtmp			; a = lmaph[y] - cyh[x]
+	lda	lmaph,y
+	sbc	cyh,x
+	sbc	#FBHEI
+	cmp	#2			; at destination level yet?
+	bge	:3			; (foo)
+
+;
+; Get off the ladder...
+;
+	lda	random			; switch direction at random
+	and	#FBRTP
+	eor	ccbits
+	ora	#FBHYST			; disable ladder climbing for a while
+	sta	ccbits
+
+	clc				; reset strategy timeout
+	ldy	cdiff
+	lda	btimer
+	adc	fbcnt,y
+	sta	ccnt,x
+
+	ldix	pstat,FSNORM		; enter normal state again
+	rts
+
+:3	lda	cdiff			; y = cdiff << 1
+	asl	a
+	tay
+	lda	fbvvel,y		; vtmp1 = fbvvel[y,y+1]
+	sta	vtmp1
+	lda	fbvvel+1,y
+	sta	vtmp1+1
+
+	lda	ccbits			; going down?
+	bpl	:4			; (no)
+	asl	vtmp1			; vtmp1 = vtmp1 << 1
+	rol	vtmp1h
+
+	lda	vtmp1			; cy. += vtmp1
+	adc	cyl,x
+	sta	cyl,x
+	lda	vtmp1h
+	adc	cyh,x
+	sta	cyh,x
+	jmp	flicker			; go flicker the flames
+
+:4	sec				; cy. -= vtmp1
+	lda	cyl,x
+	sbc	vtmp1
+	sta	cyl,x
+	lda	cyh,x
+	sbc	vtmp1h
+	sta	cyh,x
+
+
+;
+; FLICKER - flicker fireball/firefoxen flames
+; Passed: X = critter#
+; Returns: never
+;
+flicker	local
+	clc				; A = X + clock
+	txa
+	adc	clock
+	and	#$7			; A &= $0f
+	cmp	#$6
+	blt	:1			; (don't flicker...)
+
+	lda	cmode,x			; cmode[x] ~= 1
+	and	#$ff - CMBLUE		; (strip blue-bit)
+	eor	#1
+	ldy	hstate			; is the hammer on?
+	beq	:2
+	ora	#CMBLUE			; well, then blueify the critter
+:2	sta	cmode,x
+	rts				; return "movement"
+
+:1	jmp	deltap
+	eject
+; FHNORM - "normal" [horizontal] firecritter movement
+;
+fhnorm	local
+	lda	ccnt,x			; time for a new horz direction?
+	cmp	btimer
+	bne	:1			; (not yet)
+
+	lda	ccbits			; reset ladder-climbing-inhibit flag
+	and	#$ff - FBHYST
+	sta	ccbits
+
+	clc				; reset timer flag
+	ldy	cdiff			; ccnt[x] = btimer + delay_factor
+	lda	btimer
+	adc	fbcnt,y
+	sta	ccnt,x
+
+	lda	clev,x			; on Pt's level?
+	cmp	ptlev
+	bne	:2			; no...so move sort of at random
+
+	lda	ccstat			; should we attack the poor sot?
+	and	#FBFSEG
+	beq	:2			; no...so move at random
+
+	lda	ptseg			; which way to turn?
+	cmp	cseg,x
+	lda	ccbits			; should we go after the luser?
+	blt	:3
+	ora	#FBRTP			; go right
+	bne	:4				; [uncond]
+:3	and	#$ff - FBRTP		; go left
+:4	sta	ccbits
+	jmp	:1
+
+;
+; turn left or right, at random
+;
+:2	lda	random			; check the oracle,
+	cmp	fblev			;  should we turn?
+	bge	:1			; (I guess not)
+	lda	random			; randomly switch direction
+	and	#FBRTP
+	ora	ccbits
+	sta	ccbits
+
+:1
+	local
+	jsr	nearld			; near to a ladder?
+	beq	:1			; (no, so punt)
+	sta	vtmp1			; vtmp1 = ladder flavor
+	sty	vtmp1h			; vtmp1h = ladder's segment#
+
+	lda	ccbits			; following Luser's level?
+	and	#FBFLEV
+	beq	:2			; (no)
+	lda	ptlev			; Ok, where is he?
+	cmp	clev,x			;  (from our current position)
+	beq	:1			; same level, so don't get on ladder
+	blt	:3			; (he's below us)
+
+	lda	vtmp1			; does the ladder go up?
+	and	#LDUPP
+	bne	:goup			; yes, so get on it
+	beq	:1			; [uncond] can't use the ladder
+
+:3	lda	vtmp1			; does the ladder go down?
+	and	#LDUPP
+	beq	:godn			; yes, so use it
+	bne	:1			; [uncond] *sigh* -- nope
+
+;
+; randomly follow the ladder anyway
+; UNLESS the firecritter just got off a ladder.
+;
+:2	lda	ccbits			; are ladders disabled?
+	and	#FBHYST
+	bne	:1			; (yes, so don't follow...)
+
+	ldy	cdiff
+	lda	random			; "O, Great Random Guru,
+	cmp	fblev,y			;  what dost thou say?"
+	bge	:1			; (ok then -- don't use it)
+
+	lda	vtmp1			; going up?
+	and	#LDUPP
+	beq	:godn			; (no)
+
+:goup	lda	ccbits			; ccbits &= ~FBRTP
+	and	#$ff - FBRTP
+	jmp	:4
+
+:godn	lda	ccbits			; ccbits |= FBRTP
+	ora	#FBRTP
+:4	sta	ccbits
+
+	lda	vtmp1h			; install ladder segment#
+	sta	cseg,x
+	tay
+	sec				; setup X_position = lmseg-2
+	lda	lmseg,y
+	sbc	#2
+	sta	cxh,x
+
+	clc				; clev[x] = lmapl[cseg[x] + lmline[clev[x]]]
+	ldy	clev,x
+	lda	lmline,y
+	adc	cseg,x
+	tay
+	lda	lmapl,y
+	sta	clev,x
+
+	ldix	pstat,FSLADR		; setup for ladder-state
+	jmp	flicker			; go flicker some flames
+
+;
+; Avoid empty holes in the lmap
+;
+:1	ldy	vtmp
+	lda	lmapi,y			; left side of critter over a hole?
+	and	#GRMASK
+	bne	:av1			; (no)
+	lda	ccbits			; yes, so go right
+	ora	#FBRTP
+	bne	:av2			; [uncond] set ccbits
+
+:av1	lda	lmapi+1,y		; right side of critter over a hole?
+	and	#GRMASK
+	bne	:5			; (no)
+	lda	ccbits			; yes, so go left
+	and	#$ff - FBRTP
+:av2	sta	ccbits
+
+
+;
+; If at either edge of the screen, go in the opposite direction
+;
+:5	ldy	ccbits			; Y = magic_bits
+	lda	cxh,x			; A = x_position
+	cmp	#3			; too near to left side?
+	blt	:gort			; (yes, so go right)
+	cmp	#nwide-3		; too near right side?
+	blt	:dontgo			; (no)
+
+	tya				; lets go left
+	and	#$FF - FBRTP
+	jmp	:go
+
+:gort	tya				; lets go right...
+	ora	#FBRTP
+:go	sta	ccbits			; install the magic bits again
+:dontgo
+
+;
+; Hack horizontal movement
+;
+	lda	cdiff			; Y = cdiff << 1
+	asl	a
+	tay
+	lda	fbhvel,y		; AY = horiz_velocity
+	pha
+	lda	fbhvel+1,y
+	tay
+	pla
+	jsr	cmovex
+
+	sec				; follow girder hei
+	ldy	vtmp
+	lda	lmaph,y
+	sbc	#FBHEI
+	sta	cyh,x
+
+;
+; joyfully bounce up and down on the girder, by one scanline
+; (silly little beasties)
+;
+	lda	clock
+	adc	ccrit
+	and	#%10000
+	beq	:7
+	dec	cyh,x
+
+;
+; Pick left or right-facing font
+;
+:7	lda	cmode,x
+	ldy	ccbits
+	bpl	:8			; (moving left)
+	ora	#2			; use left-facing fonts
+	bne	:9			; [uncond]
+:8	and	#$ff-2			; use right-facing fonts
+:9	sta	cmode,x
+	jmp	flicker			; flicker the flames

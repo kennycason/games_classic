@@ -1,0 +1,508 @@
+	subttl	'Barrels'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;							;;
+;;			   Barrels			;;
+;;							;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; Barrel equates
+;
+bsinit	=	0
+bsroll	=	bsinit+1
+bsladr	=	bsroll+1
+bsrfal	=	bsladr+1
+bsobli	=	bsrfal+1
+bsfall	=	bsobli+1
+bsdie	=	bsfall+1
+	assert	bsladr = globlad		; export to jumpover code
+
+
+;
+; Bits in CBITS[]
+;
+BBRTP	=	%10000000		; 1 ==> going right
+BBMEAN	=	%01000000		; 1 ==> "mean" bouncing barrel
+BBEAMP	=	%00001000		; 1 ==> barrel is really a beam
+BBHORZ	=	%00000100		; 1 ==> moving horizontally
+BBMAG	=	%00000010		; horz magnitude, 1 ==> fast
+BBFALL	=	%00000001		; 1 ==> falling (valid in init state only...)
+
+;
+; Velocities
+;
+BVXVEL	=	$01c0			; rolling x-velocity
+BVFVEL	=	$00e0			; rolling-off-edge X-velocity
+BVFYVE	=	$01c0			; rolling-off-edge Y-velocity
+BVYFST	=	$0240			; fast fall
+BVYSLW	=	$0100			; slow fall
+BVXFST	=	$0180			; fast x-fall
+BVXSLW	=	$00a0			; slow x-fall
+
+;
+; Randoms
+;
+BAWID	=	10			; width of barrel graphics
+BAHEI	=	11			; hei of barrel graphics
+
+
+;
+; UBAR - update a barrel
+; Passed: X, ccrit = critter number
+;	  ccbits = copy of magic bits
+; Uses: critter temps, vtmp*, AXY
+; Returns: via individual state handlers
+;
+ubar	local
+	lda	pstat,x			; in die-state?
+	cmp	#BSDIE
+	beq	:1			; yes, so just die
+
+	lda	ccstat			; are we dead?
+	bmi	:2			; nope...just hit by the hammer....
+
+	lda	alivep			; Pt alive?
+	bpl	:1			; yes, unequivocally
+	lda	ptmode			; how far along is he?
+	cmp	#ptnrots		; (check rotate mode)
+	blt	:2			; far enough, so dissappear
+	lda	#0			; not rotating yet, so stay around
+	rts
+
+;
+; Erase self, since Mario is in the process of dying
+;
+:2	lda	ccstat			; request disappearance
+	ora	#CTDISS
+	sta	ccstat
+	lda	#BSDIE			; enter Die state
+	sta	pstat,x
+	dec	nba			; -- number of barrels
+
+:1	ldy	pstat,x			; switch(pstat[x])
+	tldy	vtmp1,:jtbl
+	jmp	(vtmp1)			; exec state handler
+
+:jtbll	db	low bainit, low baroll, low baladr
+	db	low barfal, low baobli
+	db	low bafall, low cridie
+
+:jtblh	db	high bainit, high baroll, high baladr
+	db	high barfal, high baobli
+	db	high bafall, high cridie
+
+
+;
+; BAINIT - barrel initialization state
+;
+bainit	local
+	lda	#$100 - BAHEI		; setup cyh, cxh, ccstat
+	jsr	crinit
+
+	ldy	#0
+	lda	cbits,x
+	and	#BBEAMP
+	beq	:1
+	ldy	#CMBLUE
+:1	lda	cbits,x
+	and	#BBFALL
+	beq	:2
+
+	ldix	pstat,BSFALL
+	tya
+	ora	#FNFBR
+	bne	:3			; [uncond]
+
+:2	ldix	pstat,BSROLL
+	tya				; FNBAR == 0, so don't bother ORing it in
+:3	sta	cmode,x
+	rts
+
+	assert	FNBAR = 0		; must be true for simple TYA to work above
+
+ 
+;
+; BAROLL - barrel "rolling" state
+;
+baroll	local
+	lda	clev,x			; at bottom level?
+	bne	:2
+	lda	cseg,x			; behind barrel?
+	cmp	#3
+	bge	:2			; (no)
+;
+; die at the bottom of the rack
+;
+	ldi	stpfg,stplen		; startup 'bang' fx
+	lda	ccbits			; setup to spawn fireball, if
+	and	#BBEAMP			;  we're a beam
+	beq	:4
+	inc	spawfb			; ++ spawn flag
+:4	lda	#BSDIE			; enter die state
+	sta	pstat,x
+	dec	nba			; -- number of barrels
+
+	lda	#1			; return "movement"
+	rts
+
+;
+; try to roll down a ladder
+;
+:2	jsr	nearld			; near a ladder?
+	bcs	:6			; (no)
+	sty	vtmp2			; vtmp2 = seg# of ladder
+	and	#LDUPP			; where does it go
+	bne	:6			; (it goes up, so ignore it...)
+
+	lda	clev,x			; above Mario?
+	cmp	ptlev
+	blt	:6			; (no)
+	beq	:6			; (on same level, so try to pummel him)
+
+	ldy	cdiff			; see if we're mean enough to go down it
+	lda	random
+	cmp	badiff,y
+	bge	:6			; (not this time)
+;
+; enter Down-Ladder state
+;
+	ldy	vtmp2			; setup X_position from ladder pos
+	lda	lmseg,y
+	sec
+	sbc	#2			; ***TUNE ME***
+	sta	cxh,x
+
+	ldix	pstat,BSLADR		; that's the new state
+	dec	clev,x			; setup level its falling to
+	jmp	setfall			; setup falling font
+
+;
+; hack horizontal movement
+;
+:6	lda	#low BVXVEL
+	ldy	#high BVXVEL
+	jsr	cmovex
+
+	sec				; follow girder height
+	lda	lmaph,y
+	sbc	#BAHEI
+	sta	cyh,x
+
+	dec	ccnt,x			; still bouncing?
+	bmi	:8			; (no)
+	lda	ccnt,x
+	and	#4
+	beq	:10
+	dec	cyh,x			; adjust Y position to bounce slightly
+	dec	cyh,x
+	jmp	:10
+:8	inc	ccnt,x			; (keep bounce counter negative)
+
+;
+; check underneath barrel for solidity
+;
+:10	ldy	vtmp
+	lda	lmapi,y
+	and	#GRMASK
+	bne	:12			; (something's there...)
+
+	sec				; near segment boundary?
+	ldy	cseg,x
+	lda	cxh,x
+	sbc	lmseg,y
+	cmp	#3
+	bge	:12			; (no)
+;
+; setup to roll off edge of girder
+;
+	ldix	pstat,BSRFAL		; that's the state we're going to
+	ldix	ccnt,gravity		; init vertical vel for fall
+	dec	clev,x			; setup to land on next level down
+	rts
+
+;
+; compute new barrel font# from X-position
+; well, this has some losses, but at /least/ its cheap
+;
+barfnt	=	*
+:12	lda	cmode,x
+	and	#$ff-3
+	sta	vtmp1
+
+	lda	cxh,x
+	echo	2			; ***TUNE ME***
+	lsr	a
+	ENDM
+	and	#3
+	ora	vtmp1
+	sta	cmode,x
+	jmp	deltap			; return if changed position...
+
+
+;
+; BARFAL - barrel state for falling off edge of girder
+; CCnt[i] is used as the vertical velocity of the falling barrel, so it
+;  looks sort of neat as it falls (a real parabola, or half of one,
+;  anyway.)
+;
+barfal	local
+	sec				; near enough to dest girder?
+	ldy	vtmp
+	lda	lmaph,y
+	sbc	cyh,x
+	cmp	#BAHEI + 3
+	bge	:2
+
+	lda	#0			; remove self from lmap up above
+	sta	lmapc,y
+;
+; ok -- do we roll into oblivion, or try to pummel Mario again?
+;
+	lda	clev,x
+	cmp	ptlev
+	bge	:4			; (still above Pt -- keep on rolling)
+
+	lda	ccbits			; don't roll off if we're a beam
+	and	#BBEAMP
+	bne	:4
+
+	lda	#24			; roll off edge.  bounce 12 times....
+	sta	ccnt,x
+	lda	#BSOBLI			; setup state
+	bne	:6			; [uncond]
+
+;
+; reverse direction and start bouncing
+;
+:4	lda	#24			; bounce for about 24 vbl
+	sta	ccnt,x
+	lda	ccbits			; reverse dir
+	eor	#BBRTP
+	sta	ccbits
+	lda	#BSROLL
+
+:6	sta	pstat,x			; install state
+	lda	#1			; return "movement"
+	rts
+
+;
+; Hack new X-position
+;
+:2	lda	#low bvfvel
+	ldy	#high bvfvel
+	jsr	cmovex
+;
+; Hack new vertical velocity
+;
+	ldi	vtmp1,0			; setup (future) vel. MSB
+	clc				; ccnt += gravity/2
+	lda	ccnt,x			;  (so it stays in-range)
+	adc	#gravity/2
+	sta	ccnt,x
+;
+; Hack new vertical position
+;
+	asl	a			; shiftify to proper range
+	rol	vtmp1			; zap Cf, set MSB with ccnt%7
+	adc	cyl,x			; add LSB from ccnt<<1
+	sta	cyl,x
+	lda	cyh,x
+	adc	vtmp1			; add-in MSB
+	sta	cyh,x
+	jmp	barfnt			; go hack new font & return
+
+
+;
+; BAOBLI - barrel rolling of edge of girder, into oblivion
+;
+baobli	ldix	pstat,bsdie		; for now, just die
+	dec	nba			; -- number of barrels
+	rts
+
+;
+; BAFALL - barrel in free-fall
+;
+bafall	local
+	sec				; A = cyh[x] - lmaph[(y=vtmp)]
+	ldy	vtmp
+	lda	lmaph,y
+	sbc	cyh,x
+
+	ldy	clev,x			; hit bottom level?
+	bne	:2
+	cmp	#BAHEI
+	bge	:2			; (no, I guess not)
+
+;
+; hit bottom level of structure.  Start the barrel rolling
+;
+	lda	#12			; bounce for a while
+	sta	ccnt,x
+	lda	#BSROLL			; enter rolling state
+	sta	pstat,x
+	lda	ccbits
+	and	#$ff - BBRTP		; set dir = Left
+	sta	ccbits
+	jmp	setroll			; set rolling font
+
+:2	cmp	#BAHEI			; slow vertical vel?
+	bge	:4			; (only in middle of a girder)
+	lda	#low bvyslw
+	ldy	#high bvyslw
+	jmp	:6
+:4	lda	#low bvyfst
+	ldy	#high bvyfst
+:6	sta	vtmp1
+	sty	vtmp1h
+
+	sec				; at new level?
+	ldy	vtmp
+	lda	lmaph,y
+	sbc	cyh,x
+	cmp	#GRHEI
+	bge	:8			; no (so install current one [again])
+;
+; setup to move to new lmap level
+;
+	ldy	vtmp			; clear old lmapc entry
+	lda	#0
+	sta	lmapc,y
+
+	dec	clev,x			; -- level
+	clc				; recompute lmap offset
+	ldy	clev,x
+	lda	cseg,x
+	adc	lmline,y
+	sta	vtmp
+
+	lda	ccbits			; bounce randomly iff ccbits%BBHORZ set
+	and	#BBHORZ
+	beq	:10
+	ldy	cdiff
+	lda	random
+	cmp	badiff,y
+	bge	:10
+	lda	ccbits			; reverse horz dir
+	eor	#BBRTP
+	sta	ccbits
+;
+; change magnitude of horz vel, if meany-bit is set
+:10	lda	ccbits
+	and	#BBMEAN			; well, is it?
+	beq	:12
+	lda	random
+	and	#BBMAG
+	eor	ccbits
+	sta	ccbits
+	jmp	:12
+
+:8
+;
+; Hack vertical pos from V in vtmp1
+;
+:12	clc
+	lda	cyl,x
+	adc	vtmp1
+	sta	cyl,x
+	lda	cyh,x
+	adc	vtmp1h
+	sta	cyh,x
+;
+; hack horz position
+;
+	lda	ccbits			; moving horizontally?
+	tay
+	and	#BBHORZ
+	beq	:14			; (nope)
+
+;
+; bounce if exceeded left or right of screen
+;
+	lda	cxh,x
+	cmp	lmseg
+	blt	:15
+	cmp	#nwide-BAWID
+	blt	:15a
+:15	lda	ccbits			; reverse horz direction
+	eor	#BBRTP
+	sta	ccbits
+
+:15a
+	tya
+	and	#BBMAG
+	bne	:16
+	lda	#low bvxfst		; yes, very fast
+	ldy	#high bvxfst
+	jmp	:18
+:16	lda	#low bvxslw		; yes, but slowly...
+	ldy	#high bvxslw
+
+:18	jsr	cmovex			; hack horz position, seg#, etc
+;
+; change font#
+;
+barvfnt	=	*
+:14	lda	cyh,x
+	echo	2			; ***TUNE ME***
+	lsr	a
+	ENDM
+	and	#3
+	sta	vtmp1
+	lda	cmode,x
+	and	#$ff-3
+	ora	vtmp1
+	sta	cmode,x
+	jmp	deltap
+
+
+;
+; BALADR - barrel falling down a ladder
+;
+baladr	local
+	sec				; A = lmaph[(y=vtmp)] - cyh[x]
+	ldy	vtmp
+	lda	lmaph,y
+	sbc	cyh,x
+
+	cmp	#BAHEI+3		; near bottom of ladder?
+	bge	:2
+	ldix	pstat,BSROLL		; setup for rolling-state
+
+	lda	ccbits			; roll in opposite dir
+	eor	#BBRTP
+	sta	ccbits
+
+;
+; Set barrel rolling
+;
+setroll	lda	cmode,x
+	and	#CMBLUE			; preserve blue attribute
+	ora	#FNBAR			; use vanilla barrel font
+	sta	cmode,x
+	lda	#1			; return "movement"
+	rts
+
+:2	ldy	cseg,x			; adjust horz pos
+	lda	lmseg,y
+	sec
+	sbc	#2			; ***TUNE ME***
+	sta	cxh,x
+
+	clc				; cy += BVFYVE
+	lda	cyl,x
+	adc	#low bvfyve
+	sta	cyl,x
+	lda	cyh,x
+	adc	#high bvfyve
+	sta	cyh,x
+	jmp	barvfnt			; hack font & return
+
+;
+; Set barrel falling
+setfall	lda	cmode,x
+	and	#CMBLUE			; preserve blue attribute bit
+	ora	#FNFBR			; use falling barrel font
+	sta	cmode,x
+	rts				; return "movement"
+
+	assert	FNFBR <> 0		; must be true for SetFall() to work...

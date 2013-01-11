@@ -1,0 +1,8 @@
+[!equal [!filenames bak],]
+	create/directory bak
+	write  Created directory BAK
+[!end]
+
+del/1=ignore/2=ignore (bak:<%-%>.[?date].bak)
+ren/1=ignore/2=ignore (bak:<%-%>.[?date]) (<%-%>.[?date].bak)
+copy/1=ignore/2=ignore (bak:<%-%>.[?date]) (%-%)

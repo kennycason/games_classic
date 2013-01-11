@@ -1,0 +1,72 @@
+	subttl	'Rivet removal'
+;
+; RMRIV - Remove a rivet from beneath Mario
+; Passed: vtmp1 = Mario's lmap index
+; Returns: nothing
+; Uses: vtmp, tmp1, draw temps
+; Imports: RIMASK, GRMASK, PtOlds, et al
+; Updates: lmapi[]'s girder and segment bits
+; Most_of_the_time: spawns a floating score, if possible
+;
+rmriv	local
+	ldx	vtmp1			; is there a rivet here?
+	lda	lmapi,x
+	and	#RIMASK
+	beq	:r			; (no, so punt)
+
+	ldy	ptolds			; y = "old" segment#
+	lda	ptoldd			; a = facing direction
+	and	#JYLF			; facing left?
+	bne	:1			; (no)
+
+	cpy	ptseg			; still on same segment?
+	bne	:remove			; (no, so blast the rivet)
+	beq	:r			; (yes, so don't do that yet...)
+
+:1	lda	ptoldd			; going right?
+	and	#JYRT
+	bne	:r			; (no, so return)
+
+	sec				; too near to right-segment boundary?
+	lda	lmseg,y
+	sbc	ptxh
+	cmp	#2
+	blt	:r			; (yes, so don't clobber the rivet yet)
+
+:remove	lda	lmapi,x			; zap rivet_p, girder_p bits in lmap
+	and	#$ff - [RIMASK + GRMASK]
+	sta	lmapi,x
+	lda	lmaph,x			; stackify rivet hei
+	pha
+
+	lda	lmseg,y			; vsrc = :rmsk[lmseg[y] & 3]
+	and	#3
+	tax
+	tldx	vsrc,:rmsk
+	ldx	lmseg,y			; X_pos = lmseg[y]
+
+	pla				; unstackify rivet y_position
+	tay
+	jsr	vdraw			; EOR the rivet into oblivion
+
+;
+; Pick a spot under the current girder and spawn a floating score there
+; UNLESS the rivet just removed was the very last one...
+;
+	dec	rivcnt			; -- rivet count
+	beq	:r			; (just return if last rivet)
+
+	ldx	vtmp1			; X = lmap index, for girder hei
+	lda	#SC100+SCFLOT		; a lousy one hundred points
+	jsr	addsc1			; make a floating score...
+	ldi	pntfg,pntlen		; startup the 'points' sound effect
+
+:r	rts
+
+;
+; Rivet masks
+; For erasing rivets, by EORing them into oblivion
+; This may leave pixels behind occasionally, but at least its cheap!
+;
+:rmskl	db	low river0, low river1, low river2, low river3
+:rmskh	db	high river0, high river1, high river2, high river3

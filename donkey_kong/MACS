@@ -1,0 +1,207 @@
+	subttl	'MACROs'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;							;;
+;;			MACROs				;;
+;;							;;
+;;	     Sundry time savers and cute hacks		;;
+;;							;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;
+; double-load immediate
+dldi	MACRO	dest,imm
+%L	LDA	#LOW %2
+	STA	%1
+	LDA	#HIGH %2
+	STA	%1+1
+	ENDM
+
+;
+; single-load immediate
+ldi	MACRO	dest,imm
+%L	LDA	#%2
+	STA	%1
+	ENDM
+
+;
+; single-load immediate indexed off of X
+ldix	MACRO	destbase,imm
+%L	LDA	#%2
+	STA	%1,X
+	ENDM
+
+;
+; single-load immediate indexed off of Y
+ldiy	MACRO	destbase,imm
+%L	LDA	#%2
+	STA	%1,Y
+	ENDM
+
+;
+; load X and Y with an address
+; X gets the high byte
+; Y gets the low byte
+ldxy	MACRO	somenumber
+%L	LDY	#LOW %1
+	LDX	#HIGH %1
+	ENDM
+
+;
+; double move
+dmv	MACRO	dest,source
+%L	LDA	%2
+	STA	%1
+	LDA	%2+1
+	STA	%1+1
+
+	ENDM
+
+;
+; single move
+mv	MACRO	dest,source
+%L	LDA	%2
+	STA	%1
+	ENDM
+
+;
+; branch if (previous compare) less than
+blt	MACRO	where
+%L	BCC	%1
+	ENDM
+
+;
+; branch if (previous compare) greater than or equal
+bge	MACRO	where
+%L	BCS	%1
+	ENDM
+
+
+;
+; double-increment
+dinc	MACRO	where
+%L	INC	%1
+	BNE	?%K
+	INC	%1+1
+?%K
+	ENDM
+
+;
+; double-decrement
+ddec	MACRO	where
+%L	DEC	%1
+	INC	%1
+	BNE	?%K
+	DEC	%1+1
+?%K	DEC	%1
+
+	ENDM
+
+;
+; double add
+dadd	MACRO	dest,src
+%L	CLC
+	LDA	%2
+	ADC	%1
+	STA	%1
+	LDA	%2+1
+	ADC	%1+1
+	STA	%1+1
+	ENDM
+
+;
+; double-add immediate
+dadi	MACRO	dest,imm
+%L	CLC
+	LDA	#LOW %2
+	ADC	%1
+	STA	%1
+	LDA	#HIGH %2
+	ADC	%1+1
+	STA	%1+1
+
+	ENDM
+
+;
+; double-subtract
+dsub	MACRO	dest,src
+%L	SEC
+	LDA	%1
+	SBC	%2
+	STA	%1
+	LDA	%1+1
+	SBC	%2+1
+	STA	%1+1
+	ENDM
+
+;
+; double-subract immediate
+dsubi	MACRO	dest,imm
+%L	SEC
+	LDA	%1
+	SBC	#LOW %2
+	STA	%1
+	LDA	%1+1
+	SBC	#HIGH %2
+	STA	%1+1
+
+	ENDM
+;
+; double-load off of X from high, low table
+tldx	MACRO	dest,table
+%L	LDA	%2H,X
+	STA	%1+1
+	LDA	%2L,X
+	STA	%1
+
+	ENDM
+
+;
+; double load from table indexed by Y
+tldy	MACRO	dest,table
+%L	LDA	%2H,Y
+	STA	%1+1
+	LDA	%2L,Y
+	STA	%1
+
+	ENDM
+
+;
+; PERC is used for difficulty tables.  It takes one argument, a
+; probability factor N from 0% to 99%, and DBs a value such that the
+; register RANDOM will be /less/ than that value N% of the time.
+;
+perc	MACRO	probability_in_percent
+%L	db	high [%1 * 655]
+	ENDM
+
+;
+; ODLINE is used to compute a scanline offset.  Its argument is a
+; scanline number, and it DBs an offset into the display list.
+;
+; ***WARNING***WARNING***WARNING***WARNING***WARNING***WARN...urk!
+; This code is highly dependent on the fact that the graphics display
+; starts on a 4K boundary plus $100, and that there are exactly 198
+; scanlines.  It assumes various things about the display list.  So, if
+; you are foolish enough to tweak things in the display list, be careful
+; lest you break something.
+;
+odline	MACRO	scanline_number
+	if	%1 = 0
+%L	db	0
+	endif
+	if	%1 < 96 and %1 <> 0
+%L	db	%1+2
+	endif
+	if	%1 > 96
+%L	db	%1+4
+	endif
+	ENDM
+
+;
+; begin local label area
+; (Sort of a kludge...but it works....)
+local	MACRO	no_arguments
+	EPROC
+%L	PROC
+	ENDM

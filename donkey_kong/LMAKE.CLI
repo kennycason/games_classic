@@ -1,0 +1,10 @@
+comment
+comment		Make a version of DK with listing to NMAIN.PRN
+comment
+
+delbat camac
+del MAIN.prn log.tmp
+write/l=log.tmp * Revision [?date] [?time]
+write/l=:udd:[!user]:log:dk * [?date] [?time] -- listing generated
+write/l=log.tmp [!ascii 211]db[!ascii 211]'[?date] [?time]'
+camac HDR s,L=MAIN.prn,sl=130,r=f,h=a.out

@@ -1,0 +1,18 @@
+	lda	ptmode
+	cmp	#psjump
+	bne	:punt
+	lda	curscr			; curscr = diff = ptseg = ptlev = 3
+	and	ptseg
+	and	diff
+	and	ptlev
+	cmp	#3
+	bne	:punt
+	lda	kbcode			; kbcode = 0 ('L') = bclock
+	ora	bclock
+	bne	:punt
+
+	dldi	tmp1,zemon
+	ldx	#0
+	ldy	#0
+	jsr	puts
+:punt

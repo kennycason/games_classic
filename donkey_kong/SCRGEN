@@ -1,0 +1,552 @@
+	subttl	'Screen Generation'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;			Screen Generation			;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; SCRGEN - generate background graphics for a rack of DK
+; Passed: A = screen number
+;	  X = flag, zero ==> don't draw ladders or hammers
+; Returns: nothing
+; Uses: AXY, tmp*, draw temps
+;
+scrgen	local
+	sta	curscr			; curscr = current_screen
+	stx	tmp4			; preserve ladder-flag
+	jsr	dloff			; turn off display
+
+	ldx	curscr			; tmp = scrlml,h[curscr]
+	tldx	tmp,scrlm
+	dldi	tmp1,lmap		; tmp1 -> lmap
+	jsr	unpack			; uncrunch packed lmap
+	jsr	remake			; remake the display list
+
+	ldx	curscr
+	dmv	vdslst,dlvec		; setup DLI vector
+	ldy	dlilns,x
+:setdl	ldx	dlilns,y		; get DLI line#
+	cpx	#$ff
+	beq	:setdx
+	lda	dbase,x
+
+	if	not debug		; don't install DLIs if using LNBUG(!!!!)
+	ora	#DLINT
+	endif
+
+	sta	dbase,x
+	iny
+	bne	:setdl			; [uncond]
+
+:setdx	lda	tmp4			; check ladder flag
+	beq	:novect			; zero ==> don't follow lmap init vector
+	jsr	:jscrst			; JSR-ind lmap init vector
+:novect
+
+	ldi	tmp1,nlmapln-1		; tmp1 = line# count
+:1	ldy	tmp1			; Y = level#
+	ldx	#0			; X = segment offset
+	lda	#lmapwid		; A = # of segments to draw
+	jsr	dgird			; draw a row of girders
+	dec	tmp1
+	bpl	:1
+
+	lda	tmp4			; ladder flag true?
+	bne	:fix1			;[branch too long...F]
+	jmp	:nolad
+
+:fix1
+	ldi	tmp1h,lmapsiz-1		; tmp1h = lmap index
+	ldi	tmp1,nlmapln-1		; tmp1 = lmap line count
+:loop	ldi	tmp2,lmapwid-1		; tmp2 = lmap segment count
+:loop1	ldx	tmp1h			; is there a ladder here?
+	lda	lmapi,x
+	and	#LDMASK
+	beq	:2			; (no)
+	pha				; save ladder type on stack...
+
+	clc				; tmp2h = lmaph[lmline[lmapl[x]] + tmp2]
+	ldy	lmapl,x
+	lda	lmline,y
+	adc	tmp2
+	tay
+	lda	lmaph,y
+	sta	tmp2h
+
+	ldy	tmp2			; tmp3 = lmseg[tmp2]
+	lda	lmseg,y
+	sta	tmp3
+
+	pla				; get ladder type back again
+	cmp	#LDBOT			; bottom of full ladder?
+	bne	:3
+	clc				; y = tmp2h + GRHEI
+	lda	tmp2h
+	adc	#GRHEI
+	tay
+	lda	lmaph,x			; a = lmaph[tmp1h]
+	jmp	:drawit			; (go draw the ladder)
+
+:3	cmp	#LDBOTB			; bottom of broken ladder?
+	bne	:4
+	sec				; y = lmaph[tmp1h] - BROKLAD
+	lda	lmaph,x
+	sbc	#BROKLAD
+	tay
+	lda	lmaph,x			; a = lmaph[tmp1h]
+	jmp	:drawit			; (go draw the ladder)
+
+:4	cmp	#LDTOPB			; top of broken ladder?
+	bne	:2
+	clc				; y = lmaph[vtmp1h] + GRHEI;
+	lda	lmaph,x
+	adc	#GRHEI
+	tay
+	adc	#BROKLAD		; a = tmp2h + GRHEI + BROKLAD
+
+;
+; final setup for drawing a ladder
+;
+:drawit	ldx	tmp3			; x = X_position of ladder
+	jsr	drwlad			; draw the thing
+
+;
+; bottom_of_loop stuff
+;
+:2	dec	tmp1h			; -- lmap index
+	dec	tmp2			; -- segment count
+	bpl	:loop1
+
+	dec	tmp1			; -- level count
+	bpl	:loop
+
+;
+; Draw hammers
+; For the Elevators rack, which doesn't have any hammers, the position
+; of the hammers must be off the screen, so they aren't drawn...
+;
+	dldi	src,pfham		; src -> playfield hammer
+	ldx	hamx			; draw hammer 0
+	ldy	hamy
+	jsr	draw
+	ldx	hamx+1			; draw hammer 1
+	ldy	hamy+1
+	jsr	draw
+
+;
+; draw the double ladders at the top of the screen
+; (unless ladx == 0)
+;
+	ldx	ladx
+	ldy	ladmin			; Y = top_of_ladder
+	lda	ladmax			; A = bottom_of_ladder
+	jsr	ddrwld			; draw two ladders...
+
+	jsr	fkong			; show facing-kong
+
+:nolad	jsr	:jscrin			; indirect-jsr graphics init
+
+;
+; draw prizes in PL3
+;
+	ldi	tmp,2			; #prizes = 3
+:p1	ldx	tmp
+	ldy	prizy,x			; Y = player_offset
+	lda	priztyp,x		; X = font offset
+	tax
+	ldi	tmph,priz1-priz0	; tmph = vertical size
+:p2	lda	prizbas,x		; copy font char into
+	sta	pl3,y			;   PL3 mem
+	iny
+	inx
+	dec	tmph
+	bne	:p2
+	dec	tmp			; -- prize count
+	bpl	:p1			; (more to do)
+	sta	hitclr			; zap PL3 collisions
+
+	jmp	dlon			; turn on the display and DLIs
+
+:jscrst	jmp	(scrst)			; jump-ind to graphics setup
+:jscrin	jmp	(scrin)			; jump-ind to lmap setup
+	eject
+;
+; DDRWLD - draw double ladders
+; Passed: XY = starting point of top left of leftmost ladder
+;	  A  = lowest point of ladder
+; Returns: two ladders drawn one segment apart
+; Uses: AXY, tmp2, tmp3, tmp4
+;
+ddrwld	stx	tmp2
+	sty	tmp2h
+	pha
+	jsr	drwlad			; draw leftmost ladder
+	clc				; compute X_pos of right ladder
+	lda	tmp2
+	adc	#GRWID*2
+	tax
+	ldy	tmp2h
+	pla
+
+;
+; DRWLAD - draw a ladder
+; Passed: XY = starting point of top left of ladder
+;	  A  = lowest point of ladder (the maximum y_coord)
+;	  (note that A >= Y)
+; Returns: nothing
+; Uses: AXY, tmp3, tmp4
+;
+drwlad	local
+	sta	tmp3			; tmp3 = maximum_y
+	sty	tmp3h			; tmp3h = current_y
+	stx	tmp4			; tmp4 = x_position
+
+:loop	lda	tmp3			; tmp3 > tmp3h?
+	cmp	tmp3h
+	beq	:r
+	blt	:r			; no, so punt
+
+:1	sec				; A = tmp3 - tmp3h
+	sbc	tmp3h
+	cmp	#4			; four scanlines left?
+	blt	:2			; (no)
+	lda	tmp3h			; on a four-scanline boundary?
+	and	#3
+	bne	:2
+
+	dmv	src,clad4		; draw four scanlines worth of
+	ldx	tmp4			;  ladder
+	ldy	tmp3h
+	jsr	draw
+	clc				; tmp3h += 4
+	lda	tmp3h
+	adc	#4
+	sta	tmp3h
+	jmp	:loop
+
+:2	ldy	clad1			; assume no rung...
+	ldx	clad1+1
+	lda	tmp3h			; on a 4-scanline boundary?
+	and	#3
+	bne	:4
+	ldy	cladr1			; yes, so draw a rung
+	ldx	cladr1+1
+:4	sty	src			; src -> ladder font
+	stx	src+1
+	ldx	tmp4
+	ldy	tmp3h
+	jsr	draw
+	inc	tmp3h			; bump current_y
+	jmp	:loop
+:r	rts
+
+
+;
+; DGIRD - draw a line of girders
+; Passed: A = segment count (number of segments to draw)
+;	  X = segment to start drawing at
+;	  Y = lmap line# to draw
+; Returns: nothing
+; Uses: AXY, tmp2, tmp3, draw temps
+;
+dgird	local
+	sty	tmp2			; tmp2 = lmap level#
+	stx	tmp2h			; tmp2h = segment#
+	sta	tmp3			; tmp3 = segment count
+
+:loop	dec	tmp3			; -- count
+	bmi	:r			; (done...)
+
+	clc				; x = lmline[tmp2] + tmp2h
+	ldx	tmp2
+	lda	lmline,x
+	adc	tmp2h
+	tax
+	lda	lmapi,x			; Y = lmapi[x] & GRMASK
+	and	#GRMASK
+	tay
+
+;
+; Pick even or odd girder font table...
+;
+	lda	tmp2h			; which segment are we on?
+	and	#1
+	bne	:1
+	tldy	src,gfnt		; use even segment fonts
+	jmp	:2
+:1	tldy	src,gfnt1		; use odd segment fonts
+:2	ldy	lmaph,x			; y = segment height
+	ldx	tmp2h			; x = lmseg[tmp2h]
+	lda	lmseg,x
+	tax
+	jsr	draw			; draw the girder segment
+	inc	tmp2h			; go to next segment...
+	jmp	:loop
+:r	rts
+	eject
+;
+; REMAKE - remake the display_list.
+; Passed: nothing
+; Returns: nothing
+; Uses: AX
+;
+remake	local
+	jsr	dloff			; turn off display
+	lda	#gmode			; install mode bytes in
+	ldx	#0			;   display-list buffer
+:remak	sta	dbase,x
+	dex
+	bne	:remak
+
+	ldi	dbase+4+vlines,DLJVB	; install DLJVB at bottom
+	dldi	dbase+5+vlines,dlist	;  and where it jumps to
+	ldi	dbase+2+96,gmode+DLLDM	; install two reload instrs
+	sta	dbase
+	dldi	dbase+2+97,[gbase+$1000-$100]	; next 4K boundary
+	dldi	dbase+1,gbase		; reload addr at top of dlist
+	jmp	cldisp			; erase display memory
+
+
+;
+; DLOFF -- turn off display by showing a null display-list
+; Passed: nothing
+; Uses: AX, one vbl
+;
+dloff	local
+	ldx	#low nulldl
+	lda	#high nulldl
+	ldy	#$40			; turn off DLIs
+	bne	:1			; (unconditional)
+
+;
+; DLON -- turn on graphics display
+; Passed & Uses: just like DLOFF
+;
+dlon	ldx	#low dlist
+	lda	#high dlist
+
+	if	debug
+	ldy	#$40
+	else
+	ldy	#$c0			; turn on DLIs again
+	endif
+
+:1	dec	vsem			; mutex with VBL
+	stx	sdlstl			; install display-list pointer
+	sta	sdlstl+1
+
+	sty	snmien			; set NMIEN fake shadow
+	sty	nmien			;  and NMIEN itself
+	inc	vsem			; release VBL again
+
+	ldx	rtclok+2		; wait for 1 vbl before returning
+	inx
+:wait	cpx	rtclok+2		; so that the shadow regs have
+	bne	:wait			;  been updated...
+	rts
+
+
+;
+; Init Ramps graphics
+;
+init0	=	rts
+
+
+;
+; Setup Ramps lmap, unpack creature fonts, et al
+;
+setup0	local
+	ldi	tmp,nlmapln-1
+:1	ldx	tmp
+	jsr	slant
+	dec	tmp
+	bpl	:1
+
+;
+; unpack fonts for fireballs and barrels
+	lda	#FNBAR			; rolling barrels/beams
+	jsr	fshift
+	lda	#FNFBR			; falling barrels/beams
+	jsr	fshift
+	lda	#FNFIB			; fireballs
+	jsr	fshift
+	rts
+
+;
+; Slant a row of girders on the Ramps rack
+; Passed: X = line# of girders to slant
+; Uses: AXY, tmp1[1]
+;
+slant	local
+	lda	slante,x			; get slant ending pt
+	sta	tmp1
+	lda	slantb,x
+	bmi	:1				; slant right to left
+	beq	:r				; punt if no slant at all
+
+;
+; slant row left to right
+	tay
+	clc
+	adc	lmline,x
+	tax
+	inc	tmp1				; ++ ending pt for easy compare
+:2	cpy	tmp1				; after ending pt?
+	bge	:2a
+	inc	lmaph,x
+	lda	lmaph,x
+:2a	sta	lmaph+1,x
+	inx
+	inx
+	iny
+	iny
+	cpy	#26
+	bge	:r
+	sta	lmaph,x
+	blt	:2				; (uncond)
+
+;
+; slant row right to left
+:1	and	#$7f
+	tay
+	clc
+	adc	lmline,x
+	tax
+
+:3	cpy	tmp1				; after ending point?
+	blt	:3a				; (yes)
+	inc	lmaph,x				; bring down these two segments
+	lda	lmaph,x
+:3a	sta	lmaph+1,x			; (2nd segment)
+	dex					; -- segment offset
+	dex
+	dey					; -- segment count
+	dey					; at end of line?
+	bmi	:r				; (yes)
+	sta	lmaph,x				; bring down 1st segment
+	bpl	:3				; (uncond)
+
+:r	rts
+
+
+;
+; starting points of slants, and slant directions
+; 0 ==> no slant at all
+; x ==> slant left to right
+; x + $80 ==> slant right to left
+;
+slantb	db	24+$80,2,22+$80,2,6+$80,0
+
+;
+; ending points of slants (first segment not to be slanted)
+;
+slante	db	12,lmapwid,0,lmapwid,0,lmapwid
+
+
+;
+; Init Ziggurat graphics
+;
+init1	=	rts
+
+
+;
+; Setup Ziggurat lmap
+;
+setup1	=	rts
+
+
+;
+; Init Elevators graphics
+;
+init2	local
+	ldx	#128			; construct elevator totem-poles
+	lda	#%01010000
+:1	sta	shfont+2,x
+	dex
+	bpl	:1
+	ldi	shfont,1		; setup wid,hei
+	ldi	shfont+1,128
+	dldi	src,shfont		; src -> shfont
+
+	ldx	#4+4*6+5		; draw left totempole
+	ldy	#62
+	jsr	draw
+
+	ldx	#4+12*6+5		; draw right totempole
+	ldy	#62
+	jsr	draw
+
+;
+; shiftify fonts
+;
+	lda	#fnspr			; shiftify spring fonts
+	jsr	fshift
+	lda	#fnfib			; and also fireball fonts
+	jsr	fshift
+
+;
+; draw the pulleys
+;
+	dldi	tmp1,:str		; tmp1 -> string...
+	jsr	puts			; stamp the things in...
+
+;
+; create the (two) firecreatures
+;
+	ldy	#2
+	lda	#8			; at lev=2, seg=8
+	jsr	:creat
+	ldy	#2			; and at lev=2, seg=23
+	lda	#23
+
+:creat	pha
+	jsr	fslot			; X -> empty critter slot
+	pla
+	sta	cseg,x			; install critter's segment
+	tya
+	sta	clev,x			; and install critter's level
+	ldix	ctyp,SPFB		; species = fireball
+	lda	#FBFSEG			; follow segment at random
+	and	random
+	ora	#FBFFOX			; disable jumping
+	sta	cbits,x
+	jmp	create			; common setup code to wake up critter
+
+
+;
+; string to print pulleys
+;
+:str	db	psxy, 4+4*6, 56, psquote
+	dw	upulley
+	db	psxy, 4+12*6, 56, psquote
+	dw	upulley
+	db	psxy, 4+4*6, 191, psquote
+	dw	bpulley
+	db	psxy, 4+12*6, 191, psquote
+	dw	bpulley
+	db	eol
+
+
+;
+; Setup Elevators lmap
+;
+setup2	=	rts
+
+
+;
+; Init Conveyerbelts graphics
+;
+init3	clc				; setup conveyerbelt timeout
+	lda	btimer
+	adc	#cdelay
+	sta	ctimer
+	ldi	cdir,cspeed		; setup conveyerbelt direction
+	lda	#fnsan			; shiftify sandpile fonts
+	jsr	fshift
+	rts
+
+;
+; Init Conveyerbelts lmap
+;
+setup3	=	rts

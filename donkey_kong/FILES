@@ -1,0 +1,20 @@
+; CART		- cartoon drivers
+; DRAW		- drawing engines
+; END		- contains END statement, general wrap	-up
+; FONTS		- unpack DB statements for fonts
+; GLOB		- global declarations
+; MACS		- macros
+; MAIN		- top level, setup, demo and title screen drivers
+; MISC		- random routines that don't fit anywhere else
+; PLAY		- top level play driver, spawning and scoring
+; ROOT		- root file for making a DBUG assembly
+; SCR		- screen generation, rack inits and so on
+; SYSTEXT	- slightly modified system equates file
+; TABLES	- general purpose tables, split pointers, etc
+; TEST		- code for testing
+; PROT		- Jumpman ("Mario") handler
+; VBH		- top level vertical blank driver
+; HDR		- basic header for non	-DBUG assembly
+; DBUG		- source for DBUG
+; DBGLST	- extra cruft for DBUG
+; FILES		- you're looking at it

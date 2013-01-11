@@ -1,0 +1,596 @@
+;
+; ENFALL - put Mario into free-fall
+; Passed: A = horz movement constant (0, JYLF or JYRT)
+;
+enfall	sta	ptjdir			; save jump direction
+	ldi	pstate,PSFALL		; set state for free-fall
+
+	lda	#0			; startup Falling sound effect
+	sta	vtime
+	lda	#falfv
+	sta	falf3
+	lda	#falcv
+	sta	falc3
+	sta	falfg
+
+
+;
+; PTFALL - Mario in free-fall
+;
+ptfall	local
+	clc				; vtmp2 = ptyh + PTHEI
+	lda	ptyh
+	adc	#PTHEI
+	sta	vtmp2
+
+;
+; See if Mario has landed somewhere:
+;
+	ldx	#nlmapln-1		; X = line count and index
+:1	clc				; Y = ptseg + lmline[x]
+	lda	ptseg
+	adc	lmline,x
+	tay
+
+	lda	lmapi,y			; check in segment
+	and	#GRMASK			; anything solid here?
+	beq	:2			; (no)
+	sec
+	lda	lmaph,y			; yes, but is Mario on it?
+	sbc	vtmp2
+	cmp	#3			; within 3 scanlines is "close enough"
+	blt	:3			; (yes)
+
+:2	lda	vtmp1h			; at right edge of screen?
+	beq	:cont			; (yes, so punt)
+	lda	lmapi+1,y		; something solid on next segment?
+	and	#GRMASK
+	beq	:cont			; (no)
+	sec
+	lda	lmaph+1,y		; is Mario close to the same height?
+	sbc	vtmp2
+	cmp	#3			; within 3 scanlines?
+	bge	:cont			; (no)
+
+;
+; Mario just landed on something.  Obviously the fall has killed him,
+; so bump him off.
+;
+:3	jmp	ptdie			; common code for DOA
+
+
+:cont	dex				; --line count
+	bpl	:1			; (more lines to check)
+
+;
+; If not on extreme left or right sides of the screen, then update
+; horizontal position based on PTJDIR[1] (jump direction)
+;
+	lda	ptseg			; at left edge (ptseg == 0)?
+	beq	:4
+	lda	vtmp1h			; at right edge (vtmp1h == 0)?
+	beq	:4
+
+	lda	ptjdir			; get jump/fall direction
+	cmp	#JYRT			; going right?
+	bne	:5			; (no)
+	dadi	ptxl,PTJXVEL		; bump x position
+	jmp	:4
+
+:5	cmp	#JYLF			; going left?
+	bne	:4			; (no)
+	dsubi	ptxl,PTJXVEL		; bump x position
+
+:4	jsr	hptseg			; adjust PTSEG from new X position
+	dadi	ptyvel,PTYACC		; hack Y velocity
+	lda	ptyvel+1		; hack terminal velocity
+	cmp	#3			; there yet?
+	bne	:noterm			; (nope)
+	dldi	ptyvel,$2ff		; yes, so reset y_velocity
+:noterm
+	dadd	ptyl,ptyvel		; bump Y position
+
+	cmp	vtmph			; changed position?
+	bne	:upd
+	lda	vtmp
+	cmp	ptxh
+	beq	:r
+:upd	lda	ptfont			; use whatever font we used last
+	jsr	ptdraw
+:r	rts
+	eject
+;
+; PTJUMP - jumpman jumping, jump-over scoring, hammer removal
+;
+; Variables setup in this state are:
+; vtmp2h= count for landing/shinbump search
+; vtmp3 = vertical pos of jumpman's feet + 1
+; vtmp3h= segment offset of level being checked
+;
+ptjump	local
+	lda	ptyh			; higher than starting level of jump?
+	cmp	ptjlev
+	blt	:1			; (yes)
+	sec				; no -- see how much lower
+	sbc	ptjlev
+	cmp	#PTHEI+1
+	blt	:1			; (ok if not greater than PTHEI, otherwise jumped too far down)
+
+;
+; Put Mario in free-fall mode, because he jumped down more than one of
+; his own heights
+;
+	lda	ptjdir			; A = direction of fall...
+	jmp	enfall			; startup fall-mode
+
+:1	clc				; vtmp3 = ptyh + PTHEI
+	lda	ptyh			;  which is the hei of the bottom
+	adc	#PTHEI			;  of Mario's feet
+	sta	vtmp3
+
+
+;
+; Search the column of segments around the current segment for:
+;  - landing solidly somewhere
+;
+	local
+	ldi	vtmp2h,nlmapln-1	; vtmp2h = level count
+:loop	clc				; vtmp3h = segment offset
+	lda	ptseg			;        = ptseg + lmline[vtmp2h]
+	ldx	vtmp2h
+	adc	lmline,x
+	sta	vtmp3h
+;
+; See if Mario's landed somewhere
+;
+	tax				; vtmp3 == lmaph[vtmp3h]?
+	lda	vtmp3
+	sec
+	sbc	lmaph,x
+	cmp	#3
+	bge	:1			; not "near enough"
+	lda	lmapi,x			; anything solid there?
+	and	#GRMASK
+	bne	:2			; (we win -- landed safely)
+
+;
+; check next segment, if there is one
+;
+:1	lda	vtmp1h			; is there a next segment?
+	beq	:cont			; (no, at right edge of screen)
+	sec
+	lda	vtmp3
+	sbc	lmaph+1,x
+	cmp	#3
+	bge	:cont
+	lda	lmapi+1,x		; is there anything there?
+	and	#GRMASK
+	beq	:cont			; (no - its empty - so punt)
+
+;
+; Mario's landed safely.  Hack jump-over scoring, next level, and
+;  similar post-jump cruft.
+;
+:2	lda	ptyvel+1		; is velocity >= 0?
+	bmi	:cont			; (no -- Mario's still moving upward...)
+	mv	ptlev,vtmp2h		; install level jumped-to
+	ldx	ptjcnt			; leapt over anything?
+	beq	:4			; (no)
+
+	cpx	#4			; jumped over more than 4?
+	blt	:sc1			; (no)
+	ldx	#3			; yes....
+:sc1	lda	:score,x		; get score associated with #things jumped
+	ldx	vtmp1			; X = lmap index
+	jsr	addsc1			; make a floating score
+
+;
+; startup 'added points' score
+;
+	ldi	pntfg,pntlen
+
+;
+; strip jumped_over_P bits from critter entries
+;
+	ldx	#nobjs-1
+:5	lda	cstat,x
+	and	#$ff-CTJUMP
+	sta	cstat,x
+	dex
+	bne	:5
+
+:4	ldi	pstate,PSNORM		; enter normal state next vbl
+	inc	otrig			; make trigger invalid until it goes high
+
+;
+; setup walking or hammering font, facing left or right
+;
+	ldx	ptfont
+	lda	hstate			; is the hammer on?
+	beq	:e6			; (no)
+	lda	:toham,x		; trans to hammering fonts
+	bne	:e7			; [uncond]
+:e6	lda	:towalk,x		; trans to vanilla walking fonts
+:e7	jmp	ptdraw
+
+;
+; transitions to hammering fonts
+;
+:toham	=	*-pfijhl
+	db	pfihl0, pfihr0
+
+;
+; transitions to walking fonts
+;
+:towalk	=	*-pfillf
+	db	pfiwl0, pfiwr0
+
+;
+; scores for number of objects jumped over (max = 3)
+;
+:score	=	*-1
+	db	sc100+SCFLOT, sc300+SCFLOT, sc800+SCFLOT
+
+;
+; (loop continuation)
+;
+:cont	dec	vtmp2h			; -- level count
+	bmi	:10
+	jmp	:loop
+
+;
+; Hammergrab -- see if Mario can latch onto a hammer....
+;
+:10	local
+	ldx	vtmp1			; at proper hei above girder?
+	sec
+	lda	lmaph,x
+	sbc	ptyh
+	cmp	#high [192 * PTHEI]	; about 3/4s his real hei...
+	blt	:noham			; (too low, I guess)
+
+;
+; Mario's high enough, but is there a hammer /here/?
+;
+	lda	lmapi,x			; check the lmap...
+	tay
+	and	#HAMASK			;   does a hammer hang here?
+	beq	:noham			; (no, so punt)
+
+	tya				; strip the hammer bit...
+	and	#$ff - HAMASK
+	sta	lmapi,x
+
+	ldx	#0			; which hammer was it?
+	lda	ptlev
+	cmp	hamlev			; hammer zero?
+	beq	:2			; (yes)
+	inx				; no, hammer one
+
+:2	dldi	vsrc,pfham		; EOR the bugger out of existence
+	lda	hamx,x			; X = x_position
+	ldy	hamy,x			; Y = y_position
+	tax
+	jsr	vdraw
+
+	ldi	hcnt,hamdly		; init swing timer
+	clc
+	lda	btimer			; setup hammer timeout...
+	adc	#5			;  ... for when it goes away.
+	sta	htimer
+	inc	hstate			; turn the hammer on
+	ldi	pntfg,pntlen		; do "grab" sound (point sound)
+
+	clc				; show Mario with hammer font
+	lda	ptfont
+	adc	#pfijhl - pfillf
+	sta	ptfont
+:noham					; [come here if no hammer grabbed...]
+
+
+;
+; Check for bounce off of edge of screen
+;
+	local
+	ldy	ptjdir
+	lda	ptxh
+	cpy	#JYLF			; which way are we going?
+	bne	:1
+	cmp	lmseg			; below lowest segment?
+	bge	:3
+	lda	#JYRT			; yes.  BOIINNGG! -- bounce right
+	bne	:2
+
+:1	cpy	#JYRT			; going right?
+	bne	:3
+	cmp	#PTMAXX+1		; yes, past right edge?
+	blt	:3
+	lda	#JYLF			; yup -- Booiinngg to the left
+
+:2	sta	ptjdir			; set bounce direction
+	sec				; ptyvel = -ptyvel, reverse vertical direction
+	lda	#0
+	sbc	ptyvel
+	sta	ptyvel
+	lda	#0
+	sbc	ptyvel+1
+	sta	ptyvel+1
+
+
+;
+; Find creatures Mario is jumping over
+;
+:3	local
+	ldx	vtmp1			; anything under current segment?
+	lda	lmapc,x
+	beq	:1			; 0 ==> nothing there...so punt
+	tay				; check creature's status
+	lda	cstat,y
+	beq	:1			; cstat[x] == 0 ==> critter is dead
+	and	#CTJUMP
+	bne	:1			; cstat[x]&CTJUMP ==> critter already flagged
+	lda	ptlev			; critter must be on same level as Mario
+	cmp	clev,y
+	bne	:1			; (its not, so punt)
+	lda	pstat,y			; critter can't be on a ladder(!)
+	cmp	#globlad		;   check private state to find out
+	beq	:1			; (on a ladder, so punt)
+
+;
+; flag the creature as "jumped-over"
+;
+	inc	ptjcnt			; ++ jumped-over-P flag
+	lda	#CTJUMP			; install jumped-over-P flag
+	ora	cstat,y
+	sta	cstat,y
+
+:1	lda	vtmp1			; is there another segment?
+	beq	:2			; (no)
+	lda	lmapc+1,x		; get critter bits
+	beq	:2			; (nothing there, so punt)
+	tay				; is critter flagged?
+	lda	cstat,y
+	beq	:2
+	and	#CTJUMP
+	bne	:2			; (yes, so punt)
+	lda	pstat,y			; don't inc if critter's on a ladder
+	cmp	#globlad
+	beq	:2
+
+	inc	ptjcnt			; ++jump count
+	lda	#CTJUMP			; set jumped-over-P flag
+	ora	cstat,y
+	sta	cstat,y
+
+;
+; Update horizontal position
+;
+:2	lda	ptjdir			; moving right?
+	cmp	#JYRT
+	bne	:3			; (no)
+	dadi	ptxl,PTJXVEL		; ptx += jumping X-velocity
+	jmp	:4s
+:3	cmp	#JYLF			; moving left?
+	bne	:4			; (no)
+	dsubi	ptxl,PTJXVEL		; ptx -= jumping X-velocity
+:4s	jsr	hptseg			; adjust PTSEG index
+	jsr	rmriv			; hack rivet removal
+
+:4
+	dadi	ptyvel,PTYACC		; ptyvel += gravity constant; hack vertical velocity
+	dadd	ptyl,ptyvel		; pty += vertical velocity
+
+	lda	ptyh			; redraw if changed position
+	cmp	vtmph
+	bne	:5
+	lda	ptxh
+	cmp	vtmp
+	beq	:r			; (haven't moved...)
+:5	lda	ptfont
+	jsr	ptdraw
+:r	rts
+	eject
+;
+; PTDRAW - redraw protagonist
+; Passed: A = font# to use
+; Uses: AXY, vtmp, vtmp1, vtmp2
+; Imports: ptxh, ptyh, ptfont, ptftb[]
+; Updates: ptoldx, ptoldf
+;
+ptdraw	local
+	sta	ptfont			; (re)install PT's font
+	ldy	ptoldf			; Y = old font#
+	tldy	vtmp,ptftb		; vtmp -> old font
+	tldy	vtmp2,hamtb		; vtmp2 -> hammer font
+
+	ldy	#0			; vtmp1 = font hei
+	lda	(vtmp),y
+	beq	:1			; (zero high, so don't bother)
+	sta	vtmp1
+
+	iny
+	clc
+	lda	ptoldy			; X = start offset in player
+	adc	#pmy
+	adc	(vtmp),y
+	tax
+	ldy	vtmp1
+
+	lda	#0
+:2	sta	pl0,x			; clear pl0, pl1
+	sta	pl1,x
+	inx
+	dey
+	bne	:2
+
+;
+; erase the hammer, if it was active
+;
+:1	lda	ptoldf			; erase a hammer font?
+	cmp	#pfihl0
+	blt	:noham			; nope...its not a hammer font
+
+	cmp	#pfijhl			; don't clear feet if jumping
+	bge	:nfeet
+	ldy	#3			; erase the feet...
+	lda	#0
+:efeet	sta	pl0,x
+	inx
+	dey
+	bpl	:efeet
+
+:nfeet	ldy	#0			; get size of old hammer font
+	lda	(vtmp2),y
+	pha
+
+	iny				; X = player/missile index
+	clc
+	lda	ptoldy
+	adc	#pmy
+	adc	(vtmp2),y
+	tax
+	pla
+	tay
+
+:clh1	lda	#0			; zap player
+	sta	pl2,x
+	lda	mis,x			; erase missiles 1,3
+	and	#$ff - %11001100
+	sta	mis,x
+	inx
+	dey
+	bpl	:clh1
+
+;
+; draw a new Mario
+;
+:noham	ldy	ptfont			; vtmp -> new font
+	sty	ptoldf			; (save font# for later erase)
+	tldy	vtmp,ptftb
+	tldy	vtmp2,hamtb		; vtmp2 -> new hammer font
+
+	ldy	#0			; vtmp1 = font hei
+	lda	(vtmp),y
+	beq	:hammer
+	sta	vtmp1
+
+	iny
+	clc				; X = player mem offset
+	lda	ptyh
+	sta	ptoldy			; (save Y for future undraw)
+	adc	#pmy
+	adc	(vtmp),y		; add-in font offset
+	tax
+
+	iny				; compute pl0 horz position
+	clc
+	lda	ptxh
+	adc	#pmx-1
+	pha
+	adc	(vtmp),y		; add-in pl0 horz offset
+	sta	hposp0
+
+	pla				; compute pl1 horz position
+	iny
+	clc
+	adc	(vtmp),y		; add-in pl1 horz offset
+	sta	hposp0+1
+	iny
+
+:3	lda	(vtmp),y		; get pl1 byte
+	sta	pl1,x			;  and shove it into pl1
+	iny
+	lda	(vtmp),y		; get pl0 byte
+	sta	pl0,x			;  and shove it into pl0 (where else?)
+	iny
+	inx				; next line down, please
+	dec	vtmp1			; -- count
+	bne	:3
+
+;
+; draw new hammer font, if the hammer is active
+;
+:hammer	lda	ptfont			; draw a hammer font?
+	cmp	#pfihl0
+	blt	:r			; no, this one doesn't /have/ a hammer
+	ldy	#0			; vtmp1 = font hei
+	lda	(vtmp2),y
+	sta	vtmp1
+
+	iny				; X = player/missile offset
+	clc
+	lda	(vtmp2),y
+	adc	#pmy
+	adc	ptyh
+	tax
+
+	iny				; compute PL2 horz_offset
+	clc
+	lda	ptxh
+	adc	#pmx-1
+	pha
+	adc	(vtmp2),y
+	sta	hposp0+2
+
+	iny				; compute Missile 1 horz_offset
+	clc
+	pla
+	pha
+	adc	(vtmp2),y
+	sta	hposp0+4+1
+
+	iny				; compute Missile 3 horz_offset
+	clc
+	pla
+	adc	(vtmp2),y
+	sta	hposp0+4+3
+
+:dham	iny				; install PL2 byte
+	lda	(vtmp2),y
+	sta	pl2,x
+	iny
+	lda	(vtmp2),y		; install M1, M3 byte
+	ora	mis,x
+	sta	mis,x
+	inx
+	dec	vtmp1			; -- font hei
+	bne	:dham			; (more bytes to shove in...)
+
+;
+; draw the feet
+;
+	ldy	ptfont			; vtmp2 -> feet font
+	cpy	#pfijhl
+	bge	:r			; don't draw if jumping
+
+	tldy	vtmp2,feetb
+	ldy	#3			; Y = feet index, hei count
+	clc				; X = player_0 offset
+	lda	ptyh
+	adc	#pmy+12+3
+	tax
+:dfeet	lda	(vtmp2),y		; get foot byte
+	sta	pl0,x			; and shove into PL0
+	dex				; -- pl0 index
+	dey				; -- hei index
+	bpl	:dfeet
+
+:r	rts
+
+
+;
+; HPTSEG - compute new segment number for jumpman
+; Passed: nothing
+; Returns: Y, PTSEG[1] = new segment number
+; Imports: PTXH
+; Uses: AY
+;
+hptseg	txa
+	pha
+	ldy	ptseg
+	lda	ptxh
+	jsr	hakseg
+	pla
+	tax
+	sty	ptseg
+	rts

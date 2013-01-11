@@ -1,0 +1,88 @@
+	subttl	'Random Animation'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;			Random Animation			;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; EXPLOD - Explosion-effect animation
+; Passed: nothing
+; Called-by: animation vector (via ANIVEC)
+; Uses: AXY, vtmp*
+; Imports: AnimOn, Xplodt, Xplods, Xplodx, Xplody
+;
+xplode	local
+	dec	xplodt			; -- jiffy timer
+	bpl	:r			; (not timed out)
+	ldx	xplods			; redraw the current font
+	jsr	:redraw			;	to get rid of it...
+	dec	xplods			; -- animation frame index
+	bpl	:1			; (not done)
+	dec	animon			; turn off animation
+	ldi	pntfg,pntlen		; turn on 'points' sound
+:r	rts				; and go away...
+
+:1	ldx	xplods			; x = animation index
+	ldi	xplodt,:delay		; setup delay for next frame
+
+;
+; Redraw (xor) current explosion frame
+; Passed: X = seq#
+;
+:redraw	tldx	vsrc,:font		; vsrc -> seq font
+	clc				; Y = y_pos + font_y_offset
+	lda	xplody
+	adc	:yoffs,x
+	tay
+	clc
+	lda	xplodx			; X = x_pos + font_x_offset
+	adc	:xoffs,x
+	tax
+	jmp	vdraw			; draw the thing...
+
+
+:delay	=	4			; jiffies between frames
+
+;
+; split pointers to fonts for explosion effect
+;
+:fontl	db	low blank
+	db	low hhfx4, low hhfx3, low hhfx2
+	db	low hhfx1, low hhfx0
+	db	low hhfx1, low hhfx0
+	db	low hhfx1, low hhfx0
+	db	low hhfx1, low hhfx0
+	db	low hhfx1, low hhfx0
+	db	low blank
+
+:fonth	db	high blank
+	db	high hhfx4, high hhfx3, high hhfx2
+	db	high hhfx1, high hhfx0
+	db	high hhfx1, high hhfx0
+	db	high hhfx1, high hhfx0
+	db	high hhfx1, high hhfx0
+	db	high hhfx1, high hhfx0
+	db	high blank
+xplodl	=	*-:fonth
+
+;
+; x,y offsets for above fonts
+;
+:xoffs	db	0
+	db	$100-4,0,0
+	db	0,0
+	db	0,0
+	db	0,0
+	db	0,0
+	db	0,0
+	db	0
+
+:yoffs	db	0
+	db	$100-5,4,3
+	db	2,0
+	db	2,0
+	db	2,0
+	db	2,0
+	db	2,0
+	db	0

@@ -1,0 +1,24 @@
+;
+; Naming conventions:
+; (Please note that these are not strictly adhered to, and the Author
+;  reserves the right to punt or ignore anything he wants to).
+;
+; Names starting with:
+;	PFxxxx	- protagonist font (8 bit const)
+;	PSxxxx	- protagonist state (8 bit const)
+;	PTxxxx	- piece of protagonist code (16 bit pointer)
+;		  Also used for temps, and constants
+;	SNxxxx	- sound effect (8 bit const)
+;	CTxxxx	- Critter table constant or mask
+;	RKxxxx	- Dealing with racks
+;	SPxxxx	- species id (3 bits, I guess)
+;	LDxxxx	- ladder flavor, or ladder masks
+;	GRxxxx	- girder flavor, or girder masks
+;	SCxxxx	- scores
+;	LMAPx	- lmap table, or crunchified pristine lmap
+;	Vxxxxx	- probably vblank usage variable, but don't bet on it!
+;	xxxxxL	- low part of split table (low bytes only)
+;	xxxxxH	- high part of split table (high bytes only)
+;	:xxxxxx	- always a local label
+;	?xxxxxx	- never used, or only in macros, if needed
+;

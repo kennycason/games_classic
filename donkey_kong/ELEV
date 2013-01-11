@@ -1,0 +1,168 @@
+	subttl	'Elevator platform hacking'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;			Elevator platforms			;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; UELEV - update elevator segments
+; Passed: nothing
+; Returns: nothing
+; Uses: AXY, vtmp*, some graphics mem (for the elevator segments)
+; Imports: ELGIRD[], ADDRx, GRHEI, BWIDE
+;
+; This routine updates the position of and redraws the elevator segments
+; in the RKELEV rack.  Upgoing elevators are refreshed during odd vbls,
+; and downgoing elevators are refreshed during even vbls.  Thus, it
+; takes a piece of elevator four seconds to make the trip from top to
+; bottom.
+;
+; The code is incredibly wired into the Elevators lmap, and assumes that
+; graphics memory is contiguous.
+;
+	local
+:eltop	=	62			; max top of elev segment
+:elbot	=	190			; max bottom of elev segment
+:elhei	=	GRHEI+2			; height of an elev segment
+
+uelev
+	ldi	vtmp,2			; vtmp = level count
+	lda	rtclok+2		; which do we update?
+	and	#1
+	bne	:dloop			; (update downgoing platforms)
+
+;
+; refresh upgoing platforms
+;
+:uloop	ldy	vtmp			; x = lmline[vtmp]
+	ldx	lmline,y
+	dec	lmaph+4,x		; move platform up one scanline
+	dec	lmaph+5,x		;  ('cause its two segments wide!)
+	lda	lmaph+4,x		; past top of pulley?
+	cmp	#:eltop-:elhei+1
+	bge	:1			; (no)
+	lda	#:elbot			; yes, so reappear at the bottom
+	sta	lmaph+4,x
+	sta	lmaph+5,x
+
+:1	ldy	#[4 * 6 + 4]/4		; x_offset of 4th segment
+	jsr	:rdraw			; redraw the platform
+	dec	vtmp			; -- platform count
+	bpl	:uloop
+	rts				; goodbye
+
+;
+; refresh downgoing platforms
+;
+:dloop	ldy	vtmp			; X = lmline[vtmp]
+	ldx	lmline,y
+	inc	lmaph+12,x		; bring the platform down one scanline
+	inc	lmaph+13,x		;  (its two segments wide...)
+	lda	lmaph+12,x		; did it reach bottom?
+	cmp	#:elbot+1
+	blt	:2			; (no)
+	lda	#:eltop-:elhei+1		; yes, so teleport it back to the top
+	sta	lmaph+12,x
+	sta	lmaph+13,x
+
+:2	ldy	#[12*6+4]/4		; y = x_offset of 12th segment
+	jsr	:rdraw			; redraw the platform
+	dec	vtmp			; -- platform count
+	bpl	:dloop
+	rts
+
+
+;
+; :RDRAW - redraw an elevator platform
+; Passed: A = height of platform (y_position)
+;	  Y = x_index of platform
+; Returns: nothing
+; Uses: AXY, vtmp1, vtmp2
+;
+:rdraw
+	sta	vtmp2			; vtmp2 = hei
+	sty	vtmp2h			; vtmp2h= x_index into line
+	ldx	#:ELHEI-1		; vtmp3 = line count
+	stx	vtmp3
+	ldx	#0			; vtmp3h= line offset
+	stx	vtmp3h
+
+;
+; clip on top?
+;
+	cmp	#:ELTOP
+	bge	:r1
+
+	sec
+	lda	#:ELTOP			; a = vtmp3h = :ELTOP-vtmp2;
+	sbc	vtmp2
+	sta	vtmp3h
+
+	clc				; vtmp2 += a;
+	adc	vtmp2
+	sta	vtmp2
+
+	sec				; vtmp3 -= a;
+	lda	vtmp3
+	sbc	vtmp3h
+	sta	vtmp3
+	jmp	:r2
+
+;
+; clip on bottom?
+;
+:r1	cmp	#:ELBOT-:ELHEI+1
+	blt	:r2			; (no)
+
+	lda	#:ELBOT			; vtmp3 = :ELBOT - vtmp2 = count
+	sbc	vtmp2
+	sta	vtmp3
+
+;
+; Setup for blasting in platform graphics
+;
+:r2	clc				; vtmp1 = vtmp2h + addrl,h[vtmp2]
+	ldx	vtmp2
+	lda	vtmp2h
+	adc	addrl,x
+	sta	vtmp1
+	lda	#0
+	adc	addrh,x
+	sta	vtmp1h
+
+	ldy	#0			; y = 0 = graphics mem index
+	lda	vtmp3h			; x = 3*vtmp3h = vtmp3h<<1 + vtmp3h = platform source index
+	asl	a
+	adc	vtmp3h
+	tax
+
+;
+; Blast the platform in, a line at a time...
+;
+:r3	lda	elgird,x		; get girder byte...
+	sta	(vtmp1),y		;  and shove into graphics mem
+	inx				; bump the indexi, Egore
+	iny					; ("yes, master")
+
+	lda	elgird,x		; move another girder byte
+	sta	(vtmp1),y		;    into display mem
+	inx				; next byte, please
+	iny					; ("Ogay")
+
+	lda	elgird,x		; one last girder byte
+	sta	(vtmp1),y
+	inx
+
+	clc				; y += BWIDE-2, bump the graphics mem index
+	tya
+	adc	#BWIDE-2
+	tay
+
+	cmp	#BWIDE			; overflowed the index register?
+	bge	:r4			; (no)
+	inc	vtmp1h			; yes, so bump MSB of pointer to compensate
+
+:r4	dec	vtmp3			; -- line count
+	bpl	:r3			; (more lines to draw)
+	rts

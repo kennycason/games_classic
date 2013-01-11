@@ -1,0 +1,596 @@
+	subttl	'Cartoons'
+;
+; Cartoon drivers
+; Written by Vince Wu and Richard Harvey
+;
+sbfsav	=	shfont+$400
+skbuf	=	shfont+$402
+
+;
+; intro cartoon
+;
+icart0	local
+;
+; Draw straight girders -- no ladders.
+;
+	lda	#RKCRT1
+	ldx	#0		;straight girders screen
+	jsr	scrgen
+;
+; Save Kong's travel path w/o ladder
+;
+	dldi	dest,shfont		;use shfont as buffer to save
+	ldi	hei,196-64		;  the background without the
+	ldi	rn,6			;  ladder
+	ldi	xisav,17
+	ldi	yi,64
+	jsr	savblk
+	dmv	sbfsav,dest		; the end pt of saved buffer
+
+;
+; Draw ladders
+;
+	ldy 	#64		;top of ladders
+	lda 	#194		;bottom of ladders
+	ldx 	#70		;left ladder
+	jsr	ddrwld		; draw two adjacent ladders
+
+;
+; Init Kong
+;
+	ldy 	#168		;init Kongy
+	sty 	Kongy
+	ldx 	#68  		;init Kongx, too...
+	stx 	Kongx
+	stx 	Kongi		;init to even, for Kongb0
+
+;
+; Position the Lady
+;
+	ldy 	#177		; screen y position
+	sty 	Nelly
+	ldx 	#80		; screen x position
+	stx 	Nellx
+
+;
+; Startup introduction music
+; Turn on vblank code
+;
+	ldi	intfg,intle1
+	ldi	music2,intle2
+	inc	vsem		; perform V(Vsem)
+
+;
+; climb
+;  Kong moves from 68,164 to 68,60 at 4 scanlines/6 jiffys.
+;  Nell kicks every 5 jiffys.
+;
+; plot Kong  w/ X=0
+;
+	lda 	#1		; Select :CLMB1 routine...
+	tax			; Set Jiffy ctr #1 to immediately
+	jsr	:INVB		; Setup Vblank
+
+;
+; Float
+; Move Kongb0 from 68,60 to 68,22 via :FTAB.
+; Put Nell on platform.
+;
+	dldi	src,Nell0
+	ldx 	#88
+	ldy 	#3
+	jsr 	DRAW
+
+;
+; unpack "vanilla" sounds (for stamp & grin)
+;
+;	jsr	expnds
+
+	lda 	#12
+	sta 	Ftabpt
+
+	lda 	#2		; do float in vbl
+	tax			; Set Jiffy ctr #1
+	jsr	:INVB
+
+;
+;	Kill ladders
+;
+	ldi	yi,64		; assumes paramenter set by last drawing
+	ldi	hei,32
+	dldi	src,shfont		;   of KONG
+	sec
+	jsr	stamp
+
+;
+; Stomp, bend top girder, pause
+;
+	lda 	#STPLEN
+	sta	stpfg
+	jsr 	BTOP		;bend top girder
+	lda 	#10		;  and sleep for a while
+	jsr 	sleep
+
+;
+; Kong jumps four times
+;
+	lda 	#3
+	sta 	Repcnt
+
+:JLOOP	lda 	#8		;init :FTAB pointer
+	sta 	Ftabpt
+
+	lda 	#3		; do jump in vbl
+	tax
+	jsr	:INVB
+
+	lda 	#STPLEN		; turn on stomp sound
+	sta	stpfg
+	jsr 	BNEXT		;bend next girder
+	dec 	Repcnt		;count this jump
+	bpl 	:JLOOP
+
+	lda 	#33		;wait a bit...
+	jsr 	sleep
+
+;
+; Kong grins
+;
+	lda	#khe		;show grin image
+	jsr	pckong
+	lda	#khe + khtyp
+	jsr	pckong
+	lda 	#3		; sound grin Thrice...
+	sta 	Repcnt
+
+:G1	lda 	#GRNLEN		; startup grin sound
+	sta	grnfg
+	lda 	#46		; wait for a while
+	jsr 	sleep
+	dec 	Repcnt		; -- count
+	bne 	:G1
+
+	dec	vsem		; P(Vsem) -- turn off vbl code
+	jmp	sndoff		; exit, turning off all sounds
+
+
+;
+; BTOP - bend topmost girder
+; Passed: nothing
+; Returns: variables setup properly for subsequent BNEXT calls
+;
+BTOP	ldi	tmp1h,nlmapln-2		; setup for top-1th girder bend
+
+;
+; BNEXT - bend next girder
+; Assumes: appropriate setup by BTOP
+; Returns: the next girder, drawn slanted
+;
+BNEXT	ldi	tmp2,bwide		; tmp2 = width_of_screen
+	ldi	tmp2h,GRHEI		; tmp2h = hei of girder segment
+	dldi	src,tmp2		; src -> tmp2
+	ldy	tmp1h			; y = lmaph[lmline[tmp1h]]
+	ldx	lmline,y		;   = hei of line of girders
+	ldy	lmaph,x
+	ldx	#0			; x_pos = 0
+	jsr	clear			; clear line of straight girders
+
+	ldx	tmp1h			; bend the lmap
+	jsr	slant
+
+	lda	#lmapwid		; show the world, A = segment count
+	ldx	#0			; X = starting segment#
+	ldy	tmp1h			; Y = lmap line to (re)draw
+	dec	tmp1h			; -- level# for next time
+	jmp	dgird			; redraw the line of girders
+				;  only slanted, implied RTS
+	eject
+;
+; the 'broken-heart' cartoon
+;
+icart1
+;
+; draw the heart
+;
+	dldi	src,Heart
+	ldx	#72
+	ldy	#0
+	jsr	DRAW
+
+
+	dldi	src,Kongb0		;dummy arg for CLEAR
+	ldy	Kongy
+	ldx	Kongx
+	jsr	clear
+
+	ldy	#$1f		;+2, vblank decrement before drawing
+	sty	Kongy
+	ldy	#$2a		;Nelly = Kongy + 11, but in this case
+	sty	Nelly		;  Kongy += 2, hence Nelly = Kongy + 13
+	ldx 	#104
+	stx 	Kongx
+	ldx	#116		; Nellx = Kongx + 12
+	stx	Nellx
+	stx	Kongi		; init to even for Kongb0 first
+
+;
+; climb
+;
+	inc	vsem		; enabled VBLANK
+	lda 	#4		; Select :CLMB2 routine.
+	ldx	#0		; Set Jiffy ctr # to show Kong @ 1st opt
+	jsr	:INVB
+
+	dec	vsem		; disable VBLANK
+	rts
+
+;
+; 'spawn' vblank routine
+;
+:INVB
+	stx	Jiflg1
+	sta 	Seqflg		; Select Vblank Routine...
+
+:INVB1	lda	Seqflg		; Wait until Vblank Routine is finished.
+	bne	:INVB1
+	rts
+	eject
+;
+; Kong falling cartoon
+;
+ICART2	dldi	src,cgirfak	; clear the girders
+	ldx	#40
+	ldy	#41
+	jsr	clear
+
+;
+; Redraw girders at the bottom of the Ziggurat structure
+;
+	dldi	src,fgird3		; src -> girder flavor to use
+	ldi	tmp2h,4			; tmp2h = level count
+	ldi	tmp2,nlines-[GRHEI*2]		; tmp2 = y_position
+
+:gird1	ldi	tmp3,[7*6] + 4		; tmp3 = x_position
+	ldi	tmp3h,12		; tmp3h = girder count
+
+:gird2	ldx	tmp3			; draw a girder at (tmp3, tmp2)
+	ldy	tmp2
+	jsr	draw
+
+	clc			; tmp3 += GRWID
+	lda	tmp3
+	adc	#GRWID
+	sta	tmp3
+	dec	tmp3h			; -- girder count
+	bne	:gird2
+
+	sec			; tmp2 -= GRHEI
+	lda	tmp2
+	sbc	#GRHEI
+	sta	tmp2
+	dec	tmp2h			; -- level count
+	bne	:gird1
+
+;
+; Draw Kong upside-down
+;
+	clc
+	lda	Kongy
+	adc	#62
+	sta	yi		; destination row ctr
+	ldi	hei,31
+:flip0
+	ldi	rn,6		; Kong is 6 bytes wide
+	ldy	Kongy		; get source row memory addr
+	tldy	src,addr
+	ldy	yi		; get destination row memory addr
+	tldy	dest,addr
+	ldy	#18		; get w/i row bias
+:flip1
+	lda	(src),y
+	sta	(dest),y
+	lda	#0
+	sta	(src),y		; clear out source byte
+	iny
+	dec	rn		; finished 6 bytes?
+	bne	:flip1		; no-->
+	dec	yi		; move up 1 destination row
+	inc	Kongy		; move down 1 source row
+	dec	hei		; finished 31 rows yet?
+	bne	:flip0		; no-->
+
+;
+; Move Kong down
+;
+	inc	vsem		; invoke vertical blank
+	lda	#5		; Select :FALL routine.
+	ldx	#2		; Set Jiffy ctr #1
+	jsr	:INVB
+
+;
+; Hit bottom
+;
+	lda	#11		; Do it 11 times..
+	sta	Repcnt
+:HIT1	lda 	#6		; Select :CRASH routine.
+	ldx	#3		; Set Jiffy ctr #1
+	jsr 	:INVB
+
+	dec	Repcnt
+	bpl	:HIT1
+	dec	vsem
+	rts
+	eject
+;
+; Cartoon vbl drivers
+;
+CARTVB	ldx 	Seqflg		; get vbi seq #
+	beq 	:END
+
+	dex
+	tldx	vtmp,carta
+	jmp	(vtmp)
+	
+:END	rts        		; failsafe
+
+;
+; Kong moves from 68,168-4 to 68,60 at 4 scanlines/10 jiffys.
+; The ladders are shortened by 4 scanlines every 10 jiffys.
+; Nell changes kick every 5 jiffys.
+;
+:CLMB1	lda	Jiflg1
+	cmp	#4		;every 5th jiffy countdown from 9
+	bne	:NK
+	dldi	src,kick1
+	ldx 	nellx
+	ldy 	nelly
+	jsr 	DRAW
+
+:NK	ldx	Jiflg1
+	bmi	:CLMBB
+	jmp	:JRTN
+
+:CLMBB	ldx	Seqflg
+	dex
+	stx	Jiflg2		; used as flag; 0=icart0, <> for icart1
+	beq	:CLM1
+	lda	#$df		; end, Kong moved up off the screen
+	bne	:CLM1M		; uncond-->
+:CLM1	lda	#60
+:CLM1M	cmp	Kongy
+	bne	:B3		;not finished yet-->
+	ldi 	Seqflg,0	 ;killCLMB after next frame
+:D6	rts
+:B3	ldx	Jiflg2		;icart0?
+	beq	:CLM2		;yes-->
+	lda	#31
+	ldy	#2		;move decrement step size
+	bne	:CLM2M		; uncond-->
+:CLM2	lda	#168		;1st time ploting KONG?
+	ldy	#4
+:CLM2M	sty	vtmp		;decrement step size
+	cmp	Kongy
+	bne	:B5		;not 1st time, restore background-->
+	ldx	Jiflg2		;yes, icart1?
+	beq	:B6		;no-->
+	ldy	#$ff		;delay 1st plotting of Kong in icart1
+	bne	:B4		;uncond-->
+:B5
+	jsr	kngback		;clear previous KONG image
+:B6
+	ldy	#9		;jiffy count for non-first time
+                                ;  (i.e. normal count)
+:B4	sty	Jiflg1
+	sec			;move Kong up
+	lda	Kongy
+	sbc 	vtmp
+	sta 	Kongy
+
+	sec			;move nelly up too
+	lda	nelly
+	sbc	vtmp
+	sta	nelly
+
+	jsr	savkng		;save next backgnd
+
+;
+; Toggle & draw Kong
+;
+	lda	Kongi
+	lsr	a
+ 	bcc	:D1
+	dldi	src,kongb2
+	bcs	:D2		; [uncond]
+
+:D1	dldi	src,kongb0
+
+:D2	dec 	Kongi		;Kong image #
+	ldx 	Kongx
+	ldy 	Kongy
+	jsr 	DRAW
+	ldx	Jiflg2		;icart1?
+	bne	:D6		;yes, no need to erase non-existing
+
+	lda	Kongy
+	cmp	#164
+	bcs	:D6
+	ldi	hei,4
+	sec
+	lda	sbfsav
+	sbc	#24
+	sta	sbfsav
+	sta	src
+	bcs	:D5
+	dec	sbfsav+1
+:D5
+	mv	src+1,sbfsav+1
+	sec			;argument for calling STAMP
+	jmp	stamp		;erase 4 scan lines of ladder, implied RTS
+
+;
+; Float
+; Kong moves from 68,60 to 68,22 by :FTAB/jiffy.
+;
+:FLOAT	dec 	Jiflg1		; check Jiffy counter #1
+	bmi	:fl1
+	rts
+:fl1
+	dec 	Ftabpt		; started w/ #8
+	bpl 	:E0
+	ldx	#0
+	stx 	Seqflg		; if x=0 then kill vdi
+	rts
+:E0
+	jsr 	kngback		; Clear Kong
+
+	ldx	Ftabpt		; started w/ #8
+	ldy	:FTAB,x
+	sty	Kongy
+	lda	Seqflg
+	cmp	#3
+	ldx	Kongx
+	bcc	:E1
+	inx
+	inx
+	stx	Kongx
+:E1
+	jsr	savkng		; save next Kong's backgnd
+	ldy	Kongy
+	ldx	Kongx
+	jsr	fkong
+	ldx	#3
+:JRTN
+	dex
+:JRTN1
+	stx	Jiflg1
+	rts
+
+:CLMB2	JMP	:CLMBB
+
+;
+; Fall
+;
+:FALL	dec 	Jiflg1		; check Jiffy counter #1
+	bmi	:FALL0
+	rts
+:FALL0	ldy	Kongy
+	iny
+	iny
+	cpy	#137
+	bcc 	:FALL1
+	lda	#0
+	sta 	Seqflg		; If at bottom then turn of this seq
+	rts
+
+:FALL1	sty	Kongy
+	tya			; CARRY already reset
+	adc	#31		; move downward, need to do it backward
+	sta	yi		; destination row ctr
+	tay
+	dey
+	dey
+	sty	tmp		; sorce row ctr = dest - 2
+	ldi	hei,32
+
+:FALL2	ldi	rn,6		; Kong is 6 bytes wide
+	ldy	tmp		; get source row memory addr
+	tldy	src,addr
+	ldy	yi		; get destination row memory addr
+	tldy	dest,addr
+	ldy	#18		; w/i row bias
+:FALL3
+	lda	(src),y
+	sta	(dest),y
+	lda	hei		; only zero the top 2 rows
+	cmp	#3
+	bcs	:FALL4
+	lda	#0
+	sta	(src),y		; clear out source byte
+:FALL4
+	iny
+	dec	rn		; finished 6 bytes?
+	bne	:FALL3		; no-->
+	dec	yi		; move up 1 destination row
+	dec	tmp
+	dec	hei		; finished 32 rows yet?
+	bne	:FALL2		; no-->
+
+	ldx	#2		; Reset counter & exit.
+:FALRT
+	bne 	:JRTN1
+
+:CRASH	ldx 	Jiflg1		; check Jiffy counter #1
+	bne 	:JRTN
+	stx	Seqflg		; Kill this routine.
+
+   	ldy 	Kongy
+    	ldx 	Kongx
+
+	ldx	#3		; Reset counter & exit.
+	bne	:FALRT
+
+;
+; table of y_positions for float, down, & jump routines
+;
+:FTAB	db	29,26,24,23,22,23,24,26,29,34,40,48,60
+
+;
+; vectors to cartoon vbl drivers
+;
+CARTAH	db 	high :CLMB1		; #1
+	db 	high :FLOAT		; #2
+	db 	high :FLOAT		; #3
+	db 	high :CLMB1		; #4
+	db 	high :FALL		; #5
+	db	high :CRASH		; #6
+CARTAL
+	db 	low :CLMB1		; #1
+	db 	low :FLOAT		; #2
+	db 	low :FLOAT		; #3
+	db 	low :CLMB1		; #4
+	db 	low :FALL		; #5
+	db	low :CRASH		; #6
+
+
+	local
+ksetup
+	mv	yi,kongy
+	ldi	hei,32
+	ldi	rn,7		;6 bytes width w/ 1 byte for straddle
+	lda	kongx
+	lsr	a
+	lsr	a
+	sta	xisav
+	rts
+
+savkng
+	jsr	ksetup
+	dldi	dest,skbuf
+savblk			;entry pt for arbitary block save from
+:loop			;  screen memory
+	ldx	yi
+                  	
+	tldx	src,addr		;get start of scan line
+	inc	yi
+	mv	tmp,rn		;byte bias w/i scan line
+	ldx	#0
+	ldy	xisav
+:loop1
+	lda	(src),y
+	sta	(dest,x)
+	iny
+	dinc	dest
+	dec	tmp		;end 1 scan line?
+	bne	:loop1		; uncond-->
+	dec	hei		;end all scan line?
+	bne	:loop		;no-->
+:r	rts
+
+kngback
+	jsr	ksetup
+	dldi	src,skbuf
+	ldi	shcnt,0
+	sec			;flag for STAMP routine
+	jmp	stamp		; implied RTS
+
+cgirfak	db	20,150

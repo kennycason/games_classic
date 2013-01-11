@@ -1,0 +1,19 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;							;;
+;;	Header file for Donkey Kong vanilla assembly	;;
+;;							;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+false	=	0		; "Everything I say..."
+true	=	not false	; yes?
+
+debug	=	true		; turn on debugging code
+rom	=	false		; true if generating code for ROM
+runram	=	true		; turn off ROM protection code
+invinc	=	true		; true if protagonist is invincible
+
+	link	d:cmain		; include DK main level after this file
+	list	i
+	include	d:macs		; need macros for DBUG
+	list	*

@@ -1,0 +1,11 @@
+;
+;---------------------------------------------------------------
+; setup alternate origin for testing code that exceeds 16K
+;
+	if	debug
+	assert	* < $c000
+	org	gbase + gsize + 1024
+	endif
+;
+;---------------------------------------------------------------
+;

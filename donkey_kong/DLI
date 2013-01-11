@@ -1,0 +1,47 @@
+	subttl	'DLI handlers'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;			DLI handlers				;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; Ramp's DLI handler
+; Only two phases:
+;	1 -- change color of PF2 to PF0 (remove yellow from screen)
+;	2 -- restore PF2 to original value
+;
+dli0	local
+	pha				; save state
+	lda	dlicnt			; what phase are we?
+	bmi	:rti			; invalid, so punt
+	bne	:1
+	lda	pcolr0+4		; phase 1: set PF2 to PF0
+	bne	:2			; ['uncond']
+:1	lda	pcolr0+4+2		; phase 2: set PF2 to its shadow
+:2	eor	colrsh			; hack attract shifting
+	and	drkmsk
+	inc	dlicnt
+	sta	wsync			; *sigh* -- goodbye, cycles...
+	sta	colpm0+4+2		; hack hardware PF2
+:rti	pla				; get accum back
+	rti
+
+;
+; Hack prize DLIs for PL3
+; (Used for Ziggurat, Elevators and Conveyerbelts...)
+;
+dli1
+dli2
+dli3
+	pha				; save A,X
+	txa
+	pha
+	ldx	dlicnt			; position PL3 appropriately
+	lda	prizpos+1,x
+	sta	hposp0+3
+	inc	dlicnt			; ++ dli counter
+	pla
+	tax
+	pla
+	rti

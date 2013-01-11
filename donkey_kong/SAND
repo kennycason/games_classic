@@ -1,0 +1,93 @@
+	subttl	'Sandpiles'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;			   Sandpiles				;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+sandhei	=	8			; height of a sandpile
+sandwid	=	10			; width of a sandpile
+
+;
+; USAND - update a sandpile
+; Passed: X = critter#
+;	  vtmp = lmap index
+;	  ccstat, ccbits, ccrit et al: created by scheduler
+; Uses: AY
+;
+usand	local
+	lda	pstat,x			; dying?
+	bmi	:die			; (yes)
+
+	lda	ccstat			; hit by hammer?
+	bmi	:die			; yes, so die
+
+	lda	alivep			; is Mario dying?
+	bpl	:1			; (no)
+	lda	ptmode			; don't die if in delay period
+	cmp	#PTNROTS
+	blt	:die			; he's spinning, so let's vanish
+	lda	#0			; in pre-die, so stay still
+	rts
+
+:die	ldix	pstat,$ff		; set state = dying
+	jmp	cridie			; and enter die_handler
+
+;
+; init self if just created
+;
+:1	lda	pstat,x			; pstat[x] == 0 ==> just created
+	bne	:3
+
+	lda	#$100 - SANDHEI		; setup cxh, cyh
+	jsr	crinit
+	ldix	cmode,fnsan		; setup font to use
+	lda	cseg,x			; adjust x_position if created
+	bne	:2			;    on left side of screen
+
+	ldix	cxh,$104 - SANDWID
+:2	inc	pstat,x			; return "movement"
+	rts				;   and enter living_state
+
+;
+; update horizontal position based on the direction of the conveyerbelt
+; the sandpile is sitting on.
+;
+:3	lda	cxh,x			; A = x_position, Y = level
+	ldy	clev,x
+	jsr	cbeltd			; A,Y = conveyerbelt direction
+
+	asl	a			; cx.[x] += AY << 1
+	pha
+	tya
+	rol	a
+	tay
+	pla
+
+	clc
+	adc	cxl,x
+	sta	cxl,x
+	tya
+	adc	cxh,x
+	sta	cxh,x
+
+	pha				; adjust segment#
+	jsr	cmove1
+	pla
+
+;
+; disappear if the sandpile rolls off the side of the screen, or if
+; it is on level 3 and hits the firebarrel in the middle of the screen.
+;
+	cmp	#nwide			; vanish if A >= nwide &&
+	blt	:4
+	cmp	#$100 - SANDWID		;     A < $100-SANDWID
+	blt	:die			;   ->poof!<-
+
+:4	cmp	#[12*6+4]		; vanish if in middle of screen,
+	bne	:5
+	lda	clev,x			;   and on lmap level# 3
+	cmp	#3
+	beq	:die
+
+:5	jmp	deltap			; return moved_p

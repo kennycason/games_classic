@@ -1,0 +1,904 @@
+	subttl	'Play a game'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;								;;
+;;			Main Game Driver			;;
+;;								;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; Table of levels
+;
+levltb	db	0,1
+	db	$80,2,1
+	db	$80,3,2,1
+	db	$80,3,0,2,1
+	db	$80,3,0,2,0,1
+endlvl	=	*-levltb
+
+inilev	db	0,2,5,9,14			; initial level#s
+
+;
+; Number of Kongs to print for "How High" screen
+;
+heitab	db	0,1
+	db	0,1,2
+	db	0,1,2,3
+	db	0,1,2,3,4
+	db	0,1,2,3,4,5
+
+
+;
+; PLAY - play a game
+; Passed: difficulty in DIFF, number of players in NPLYRS
+; Returns: nothing
+; Imports: almost everything
+;
+play	local
+	ldx	diff			; setup per-player areas...
+	stx	clevel			; setup current level#
+	stx	cdiff
+
+	ldy	inilev,x		; setup initial level stuff
+	sty	curlvl
+	lda	levltb,y
+	and	#$7f
+	sta	rackn
+
+;
+; Setup vars for second player
+;
+	ldi	nlives,2		; setup # of reserve lives
+	ldi	usr,1			; 2nd player
+	sta	played			; Played != 0 ==> never played
+
+	ldx	#5			; init CSCORE, NXTLIF[]
+:1	lda	#0
+	sta	cscore,x
+	lda	onxtlf,x
+	sta	nxtlif,x
+	dex
+	bpl	:1
+
+	ldx	#usrlen-1		; copy USR[] to USR1[]
+:2	lda	usr,x			;  for 1st-player init
+	sta	usr1,x
+	dex
+	bpl	:2
+
+;
+; setup vars for first player
+;
+	dec	usr
+
+;
+; main play loop
+;
+:loop	lda	played			; ever played before?
+	beq	:3			; (yes)
+	lda	#0			; no, so show cartoon
+	sta	played
+	jsr	cart
+
+:3	jsr	howhi			; show "How High" screen
+	jsr	rplay			; play a round, status returned in A
+	tay				; (save Rplay() status)
+	jsr	sndoff			; turn off all sounds
+
+	jsr	abortp			; abort now?
+	bne	:r			; (yes)
+
+	tya				; if Rplay() returned zero, then didn't die
+	beq	:loop			;  (he just finished the rack)
+
+;
+; Player died
+;
+	dec	nlives			; -- life count
+	bpl	:4			; (has lives left...)
+	jsr	gover			; show "GAME OVER" -- used up last life
+	lda	nplyrs			; was it a 1-player game?
+	beq	:r			; (yes, so exit)
+	jsr	swap			; swap-in other player
+	lda	nlives			; Does he have any lives left?
+	bmi	:r			;  (no, so just return)
+	jmp	:loop			; Let the other player have a round
+
+:4	lda	nplyrs			; one-player game?
+	beq	:loop			; (yes, so don't swap...)
+	jsr	swap			; swap-in other player
+	lda	nlives
+	bpl	:loop			; let him play if he's got any lives left
+	jsr	swap			; Otherwise, let the original player
+	jmp	:loop			;  finish up his rounds
+:r	jmp	sndoff			; turn off sounds...
+	subttl	'Rplay() -- play a round'
+;
+; RPLAY - play one round, until the player finishes the round or dies
+; Returns: A = 0 ==> succesfully completed rack
+;	   A <>0 ==> died
+;
+rplay	local
+	lda	#0			; turn off all creatures
+	ldx	#nobjs-1		;   by turning off cstat%CTALIV
+:1	sta	cstat,x
+	dex
+	bpl	:1
+
+;
+; Zero stuff in the round-init area
+;
+	ldx	#endrlen		; #bytes to clobber
+:zloop	sta	rzerob-1,x
+	dex
+	bne	:zloop
+
+	ldx	#lmapsiz		; clear assoc memory in lmap
+:1a	sta	lmapc-1,x		;  critter table...
+	dex
+	bne	:1a
+
+
+;
+; Init bonus clock
+;
+	ldx	#3			; wire-in some zero digits
+:2	sta	bclock,x
+	dex
+	bpl	:2
+	ldx	cdiff			; get thousands digit from table
+	lda	bcdigi,x		;  and install it...
+	sta	bclock
+
+	ldi	rivcnt,8		; init rivit count
+	ldi	lstupd,nobjs-1		; init lstupd pointer for Sched()
+	ldi	alivep,1		; Declare the protagonist to be alive
+	ldi	bcfrac,bcdly		; setup bonus clock ticker
+
+	ldx	rackn			; set protagonist starting segment
+	lda	ptsseg,x
+	sta	ptseg
+	tax				; init Mario's x_position
+	lda	lmseg,x			; ptxh = lmseg[ptsseg[rackn]]
+	sta	ptxh
+
+;
+; Generate screen for this round
+;
+	lda	rackn			; get current screen#
+	ldx	#1			; make sure ladders get drawn...
+	jsr	scrgen			;  and get SCRGEN to do the work
+
+	dldi	tmp1,scline		; setup pristine scoreline
+	jsr	puts
+
+;
+; setup level indicator
+;
+	ldy	clevel			; stamp level-number (0..9)
+	iny
+	tya
+	ldx	#4
+	ldy	#9+7
+	jsr	putc
+
+;
+; print tiny little marios beneath current player's score
+;
+	ldx	#144
+	ldy	#14
+	mv	tmp1,nlives			; tmp1 = count
+:lm	dec	tmp1
+	bmi	:lm1
+	lda	#38				; a = 'little mario' font
+	jsr	putc
+	jmp	:lm
+
+;
+; In two-player mode, print the other person's score on the top left.
+; In one-player mode, print the high score there instead.
+;
+:lm1	lda	nplyrs			; how many players are there?
+	beq	:sh1			; (only one)
+
+	ldx	usr+usrlen		; A = other player's number
+	inx
+	txa
+	ldx	#4
+	ldy	#0
+	jsr	putc
+	ldx	#8			; X = x_position of 'UP'
+	jsr	showup			; print 'UP' on screen
+	dldi	tmp1,[cscore+usrlen]	; tmp1 -> other player's score
+	bne	:sh2
+	assert	high [cscore+usrlen] <> 0
+
+;
+; print high score
+;
+:sh1	dldi	tmp1,qhiscor		; tmp1 -> 'HI SCORE'
+	ldx	#4
+	ldy	#0
+	jsr	puts			; stamp the string
+	dldi	tmp1,hscore		; tmp1 -> high score
+
+:sh2	ldx	#38			; draw a score at (38,0)
+	ldy	#0
+	lda	#6			; length = 6 chars
+	jsr	putscor
+
+	jsr	showbc			; show the bonus clock
+	lda	#SCZERO			; refresh score
+	jsr	addsc
+
+;
+; Wake everybody up, and get things rolling
+;
+	inc	otrig			; disable trigger...
+	inc	gameon			; set game-on flag
+	inc	vsem			; wake up VBH()
+
+;
+; Main game-play loop
+;
+:loop	jsr	abortp			; abort the game?
+	bne	:punt			; yes, so turn stuff off
+
+	lda	alivep			; protagonist still alive?
+	beq	:xit			; (no)
+	lda	rackdn			; did he finish the rack?
+	bne	:xit			; (yes)
+
+:wait	lda	vdone			; wait for a vbl to go by
+	beq	:wait
+	ldi	vdone,0
+
+	lda	pausep			; punt if in pause-mode
+	bne	:loop
+
+	lda	animon			; update animation
+	beq	:noanim
+	jsr	janim
+	jmp	:loop
+janim	jmp	(anivec)
+
+:noanim	jsr	massud			; do massive update
+	jsr	score			; update scoreline
+	jsr	spawn			; create creatures
+	jsr	ukong			; update Kong
+	jsr	ulady			; update Lady
+	jsr	ufireb			; update Firebarrel
+	jsr	sched			; update all other creatures
+	jmp	:loop
+
+;
+; Abort the game (somebody hit a console key)
+;
+:punt	dec	gameon			; turn off game
+	ldi	animon,0		; turn off animation
+	dec	vsem			; then turn-off VBH and punt
+	rts				; and return to PLAY
+
+;
+; Exit -- the round's over
+;
+:xit	dec	vsem			; turn off VBL
+	dec	gameon			; turn off game
+	lda	rackdn			; finished rack sucessfully?
+	beq	:4			; (no)
+
+;
+; The Luser won this round.  Reward him with a little song and dance.
+;
+	lda	rackn			; do appropriate cartoon
+	jsr	cart
+
+	ldx	curlvl			; setup for next rack
+	cpx	#endlvl-1		; at very, very top?
+	beq	:n1			; (yes, so special-case it)
+	lda	levltb+1,x		; get next rack#
+	bpl	:n2			; (its a vanilla rack...)
+	and	#$7f			; top of level, so increment
+	inc	cdiff			;   the difficulty
+	inc	clevel			;   and the level#
+:n2	sta	rackn
+	inc	curlvl			; ++ levltb index
+	bne	:n3			; [uncond]
+
+:n1	mv	curlvl,inilev+4		; back to start of level 5
+	ldi	rackn,0			; "gotta be" zero(!)
+	ldx	clevel			; ++ level#
+	cpx	#9
+	beq	:n3			; don't overflow 9!
+	inc	clevel
+
+:n3	lda	#0			; zero ==> finished rack
+	rts
+
+;
+; The player got clobbered somehow.  Tell Play() about it
+;
+:4	lda	#1			; A != 0 ==> died
+	rts
+	subttl	'Massive update'
+massud	local
+;
+; Update the BCD version of the bonus clock
+;
+	dec	bcfrac			; -- jiffy counter
+	bne	:nochng			; (not done yet)
+	ldi	bcfrac,bcdly		; reset jiffy counter
+	inc	btimer			; ++ bonus ticker
+	dec	bclock+1		; -- BCD "100"s digit
+	bpl	:b3
+
+	dec	bclock			; -- BCD "1000"s digit
+	bpl	:b4
+	ldi	bclock,0		; bonus clock sticks at zero
+	sta	bclock+1
+	beq	:b3			; [uncond]
+
+:b4	ldi	bclock+1,9		; reset "100"s digit to "9"
+
+;
+; print current bonus counter value
+;
+:b3	jsr	showbc
+
+;
+; Undraw the floating score (if its timed out)
+;
+:nochng	lda	fscore			; floating score alive?
+	beq	:fs2			; (no, so punt)
+	bpl	:fs1			; yes, it is...
+	and	#$7f			; start it up
+	sta	fscore
+	bne	:fs3			; ["uncond"]
+
+:fs1	dec	fscore			; time for it to go away?
+	bne	:fs2			; (not yet, I guess)
+
+:fs3	ldx	fscort			; x = score number
+	tldx	vsrc,fscfn		; vsrc -> font
+	ldx	fscorx			; x,y = x,y_position
+	ldy	fscory
+	jsr	vdraw			; go (un)draw the bugger
+
+;
+; Check for collisions with prizes, and award points forewith
+;
+:fs2	lda	p0pl			; check PL3/PL0 collisions
+	and	#%1000			; did Mario touch the prize?
+	beq	:f2			; (no)
+
+	lda	pstate			; Mario has to be standing to
+	cmp	#PsNorm			;   grab the prize...
+	bne	:f2			; he's not standing, so punt...
+
+	ldy	#2			; find the prize Mario touched
+	lda	ptlev
+:f3	cmp	prizlev,y		; by matching the level numbers
+	beq	:f4			; (found it!)
+	dey
+	bpl	:f3
+	bmi	:f2			; [uncond -- didn't find it]
+
+;
+; zap the prize, and award some points
+;
+:f4	ldiy	prizlev,$ff		; kill the prize
+	sta	prizpos,y		;  and take it off the screen
+	clc				; X = lmap index of Pt
+	ldx	ptlev
+	lda	ptseg
+	adc	lmline,x
+	tax
+	ldy	cdiff			; A = score#
+	lda	prizamt,y
+	jsr	addsc1			; add the score
+	ldi	pntfg,pntlen		; startup points sound
+:f2	sta	hitclr			; zap collisions
+
+;
+; change conveyerbelt direction
+;
+	lda	ctimer			; time to switch directions?
+	cmp	btimer
+	bne	:nocc
+	lda	cdir			; cdir = -cdir
+	eor	#$ff
+	clc
+	adc	#1
+	sta	cdir
+	clc				; ctimer = btimer + cdelay
+	lda	btimer
+	adc	#cdelay
+	sta	ctimer
+
+;
+; Update Mario
+;
+:nocc	jsr	uprot
+
+;
+; restart background music if Mario is alive
+;
+	lda	alivep
+	bmi	:end
+	lda	curscr
+	cmp	#RKRAMP
+	bne	:noramp
+	lda	mr2fg
+	bne	:end
+	ldi	mr2fg,MR2LEN
+	bne	:end
+
+:noramp	cmp	#RKZIGR
+	beq	:iszigr
+	cmp	#RKCONV
+	bne	:end
+:iszigr	lda	mr1fg
+	bne	:end
+	ldi	mr1fg,MR1LEN
+:end
+
+	subttl	'VBL scoring'
+;
+; SCORE - update scoreline graphics
+; Passed: nothing
+; Returns: nothing
+; Uses: tmp*, AXY
+;
+score	local
+	lda	clock			; time to flash 'xUP'?
+	and	#$7f
+	bne	:1
+
+;
+; turn on 'xUP'
+;
+	ldx	#140
+	ldy	usr
+	iny
+	tya
+	ldy	#0
+	jsr	putc
+	ldx	#144
+	jmp	showup
+
+;
+; turn off 'xUP'
+;
+:1	cmp	#$40
+	bne	:r
+	dldi	tmp1,:spaces
+	ldx	#140
+	ldy	#0
+	jmp	puts
+:r	rts
+
+:spaces	db	10,10,10,eol
+	eject
+;
+; show current value of bonus clock
+;
+showbc	ldx	#16
+	ldy	#17
+	dldi	tmp1,bclock
+	lda	#4				; A = length
+
+;
+; PUTSCOR - print a score on the screen
+;	    Doesn't print leading zeroes
+;
+; Passed: 	X = x_position
+;		Y = y_position
+;		A = length count (size of score)
+;		tmp1 -> byte vector to print
+; Returns: nothing
+; Uses: AXY, tmp1, tmp2, tmp3, tmp4, draw temps
+;
+putscor	local
+	sta	tmp3
+	sty	tmp3h				; tmp3h = y_pos temp
+	ldi	tmp4,0				; tmp4 = 0 ==> never seen nonzero digit
+
+:p1	dec	tmp3				; -- count
+	bmi	:r				; (no more to do, so punt)
+	ldy	#0				; get digit
+	lda	(tmp1),y
+	bne	:p2				; nonzero, so print it
+	ldy	tmp4				; seen nonzero digit yet?
+	beq	:p3				; (no, so print a space)
+:p2	inc	tmp4				; ++ nosig flag
+	bne	:p4				; [uncond]
+:p3	lda	#10				; A = space char
+:p4	ldy	tmp3h				; Y = y_position
+	jsr	putc				; print the char, X += 4
+
+	inc	tmp1				; tmp1 += 1
+	bne	:p1
+	inc	tmp1+1				; ++ high byte, too
+	bne	:p1				; 'uncond'
+
+:r	rts
+
+
+;
+; show 'xUP' at (X,0)
+;
+showup	local
+	ldy	#0
+	dldi	tmp1,:up
+	jmp	puts
+:up	db	31,26,eol
+	eject
+;
+; ADDSC1 - add to player's score (alternate entry point)
+; Passed: A = score#
+;	  X = lmap index (to get girder hei for floating score)
+; Same_as: ADDSC
+;
+addsc1	pha				; save score flavor
+	lda	lmaph,x
+	adc	#GRHEI+1
+	tay
+	pla
+	ldx	ptxh
+
+;
+; ADDSC - add to player's score (VBL only)
+; Passed: A = index to score table
+;	  X,Y = x,y_position of floating score, if A&$80 == $80
+; Uses: AXY, vtmp4
+; Updates: cscore[], nxtlif, nlives
+;
+addsc	local
+	sty	vtmp4			; vtmp4 = possible y_position
+	tay
+	bpl	:noflt			; (no floating score)
+	and	#$7f			; strip float-bit
+	tay
+	lda	fscore			; floating-score inactive?
+	bne	:noflt			; (nope, so punt -- we can't use it right now)
+	mv	fscory,vtmp4		; install x,y position...
+	stx	fscorx
+	sty	fscort			; install score type
+	ldi	fscore,30+$80		; last for .5s
+
+:noflt	ldx	#3			; (common setup)
+	cpy	#SCBON			; add bonus timer to score?
+	bne	:norm			; (no, vanilla scoring)
+
+;
+; Add contents of bonus clock to current score
+;
+	lda	#0			; (carry = 0)
+:ab	clc				; A += block[x] + cscore[x]
+	adc	bclock-2,x
+	adc	cscore,x
+	ldy	#0
+	cmp	#10			; digit overflow?
+	bcc	:under			; (no)
+
+	sbc	#10
+	iny
+
+:under	sta	cscore,x		; shove digit into new score
+:nab	tya
+	dex
+	bpl	:ab
+	bmi	:1			; [uncond]
+
+;
+; Add 100, 300, 500 or 800 points to the current score
+;
+:norm	lda	sctbl,y				; hack hundreds digit
+:norm1	clc					; cscore[x] += A
+	adc	cscore,x
+	sta	cscore,x
+:2	cmp	#10				; carry into next digit?
+	bcc	:1				; (no)
+	sbc	#10				
+	sta	cscore,x
+	dex					; -- digit index
+	bmi	:1				; (past MSB, so punt)
+	lda	#1				; hack the carry...
+	bne	:norm1				; [uncond]
+
+;
+; reprint current player's score on the scoreline
+;
+:1	ldx	#136
+	ldy	#7
+	dldi	tmp1,cscore			; tmp1 -> score bytes
+	lda	#6				; a = length
+	jsr	putscor
+
+;
+; See if the new-life threshold has been passed
+;
+	ldx	#3
+:4	lda	cscore,x
+	cmp	nxtlif,x
+	blt	:3
+	dex
+	bpl	:4
+	inc	nlives			; increment the player's life count
+	ldi	nxtlif+3,10		; never again any more lives...
+
+;
+; add another 'little mario' to the scoreline since the player just
+; earned another life.
+;
+	ldx	#144-4			; draw little mario on scoreline
+	ldy	#14
+	dldi	vsrc,lmario
+	jsr	vdraw
+
+;
+; see if the current player has passed the high score
+;
+:3	ldx	#0
+:5	lda	cscore,x
+	cmp	hscore,x
+	blt	:r			; punt if current-score < high_score
+	bne	:copy			; copy if cscore > hscore
+	inx				; score[x] == hscore[x], so try
+	cpx	#4			;  another digit...
+	blt	:5
+
+:copy	ldx	#3			; copy cscore[] into high score
+:6	lda	cscore,x
+	sta	hscore,x
+	dex
+	bpl	:6
+
+;
+; reprint high score
+;
+	lda	nplyrs				; don't refresh if in two-player mode
+	bne	:r
+
+	dldi	tmp1,hscore
+	ldx	#38
+	ldy	#0
+	lda	#6
+	jmp	putscor
+:r	rts
+;
+; CART - show a cartoon
+; Passed: A = cartoon number, 0..3
+; Returns: after many seconds
+; Uses: ANIVEC and friends, screen memory, and so on
+;
+cart	=	rts
+	eject
+;
+; HOWHI - show "how-high" screen
+; Passed: Levltb[] offset in CURLVL
+; Returns: nothing
+; Uses: AXY, tmp1, draw & vdraw temps
+;
+howhi	local
+	jsr	remake			; reconstruct the display list
+	ldx	#high :str		; print "How High Can You Get?"
+	ldy	#low :str
+	jsr	puts1
+
+	ldx	usr			; draw the digit for the 'UP' text
+	inx
+	txa
+	ldx	#120
+	ldy	#[nlines/2]-12
+	jsr	putc
+
+;
+; Draw a lot of Kongs standing on each other's shoulders.
+; (This is /totally/ wierd.  Who at Nintendo thought up this
+;  crazy screen, anyway?)
+;
+	ldi	kongy,nlines-32		; start Kongs at the bottom...
+	ldi	kongx,[nwide/2]-16	; 'prox middle of the screen
+	ldx	curlvl			; tmp1 = Kong count
+	lda	heitab,x
+	sta	tmp1
+
+:1	jsr	fkong			; draw a facing_kong
+	dec	tmp1			; -- count
+	bmi	:2			; [no more to draw...]
+	sec				; Kongy -= 32
+	lda	kongy
+	sbc	#32
+	sta	kongy
+	bne	:1			; ["uncond"]
+	assert	6*32 <> nlines		; [for above BNE to work correctly]
+
+:2	ldx	curlvl			; tmp1 = :strn+heitab[curlvl]*5
+	lda	heitab,x		; (tmp1 -> height string)
+	asl	a
+	asl	a
+	adc	heitab,x
+	adc	#low :strn
+	sta	tmp1
+	lda	#0
+	adc	#high :strn
+	sta	tmp1h
+	ldy	kongy			; draw at (40, kongy)
+	ldx	#40
+	jsr	puts
+
+	jsr	dlon			; turn on display
+	ldi	howfg,HOWLEN		; startup "how high" music
+	sta	globix
+	sta	globix+2
+
+	inc	gameon
+	inc	vsem
+
+:3	lda	howfg			; wait for the music to finish
+	lda	howfg
+	bne	:3
+:r	dec	gameon			; -- animation_on flag
+	dec	vsem
+	rts
+
+;
+; Text for "HOW HIGH CAN/YOU GET?"
+; ("No, no, Lorraine...this listing is NOT pornographic.")
+;
+:str	db	psxy,104,nlines/2
+	db	18,25,33,10,18,19,17,18,10,13,11,24	; 'HOW HIGH CAN'
+	db	psxy,112,nlines/2 + 8
+	db	35,25,31,10,17,15,30,27			;   'YOU GET?'
+	db	psxy,124,[nlines/2]-12
+	db	31,26					;     'UP'
+	db	eol
+
+;
+; text strings for "25M", "100M" etc.
+;
+:strn	db	2,5,23,eol,0		; five bytes per entry
+	db	5,0,23,eol,0
+	db	7,5,23,eol,0
+	db	1,0,0,23,eol
+	db	1,2,5,23,eol
+	db	1,5,0,23,eol
+	eject
+;
+; GOVER - draw "GAME-OVER" font on current screen, and delay
+; Passed: nothing
+; Returns: nothing
+;
+gover	local
+	ldx	#[nwide/2]-20			; clear area around message
+	ldy	#[nlines/2]-20
+	dldi	src,:clrit
+	jsr	clear
+
+	ldx	#[nwide/2]-14			; show the "GAME OVER" message
+	ldy	#[nlines/2]-15
+	dldi	src,qgover
+	jsr	draw
+
+	lda	nplyrs				; show "Player N" text?
+	beq	:wait				; (single player game, so don't bother)
+	ldx	#[nwide/2]-12
+	ldy	#[nlines/2]+5
+	dldi	tmp1,:qplyr
+	jsr	puts
+
+	ldx	#[nwide/2]-2			; show player digit...
+	ldy	usr
+	iny
+	tya
+	ldy	#[nlines/2]+5+7
+	jsr	putc
+
+:wait	ldx	rtclok+2			; wait 4s or so...
+	dex
+:w	jsr	abortp				; Luser pressed console key?
+	bne	:r
+	cpx	rtclok+2
+	bne	:w
+:r	rts
+
+;
+; size of area to clear in the middle of the screen
+;
+:clrit	db	10,40
+
+;
+; "PLAYER"
+;
+:qplyr	db	26,22,11,35,15,28
+	db	eol
+	eject
+;
+; ULADY - update the Wiggling Lady in Distress.  ("My goodness!")
+; Passed & Returns: nothing
+; Uses: various fonts, tmp*, AXY, vtmp*
+;
+ulady	local
+	ldx	curscr
+	lda	enable,x
+	bpl	:r
+	assert	enlady = $80
+
+;
+; draw/undraw 'HELP!' font
+;
+	lda	clock
+	cmp	#$80-5			; arbitrary clock point
+	beq	:2
+	cmp	#$80+40			; last for 45 jiffies....
+	bne	:1
+
+:2	clc				; x,y = 'help' x,y position
+	lda	ladyx
+	adc	#:helpx
+	tax
+	clc
+	lda	ladyy
+	adc	#:helpy
+	tay
+	dldi	vsrc,help		; vsrc -> 'help' font
+	jsr	vdraw
+
+;
+; shift the lady's font every four seconds or so
+;
+:1	lda	clock			; time to shift?
+	bne	:r
+	ldx	lstate			; drawn Lady yet?
+	beq	:nold			; (no)
+	jsr	:drawher		; yes, so EOR her out of existence
+:nold	lda	random			; pick new, random font
+	and	#1
+	tax
+	inx
+	stx	lstate
+:drawhe	tldx	vsrc,:lady		; vsrc -> lady font
+	ldx	ladyx			; x,y = x,y_positions
+	ldy	ladyy
+	jmp	vdraw
+:r	rts
+
+:ladyl	=	*-1
+	db	low nell0, low nell1
+:ladyh	=	*-1
+	db	high nell0, high nell1
+
+:helpx	=	16
+:helpy	=	2
+
+
+;
+; UFIREB - update the firebarrel's flames
+; Passed & Returns: nothing
+; Uses: fonts, tmp*, AXY
+;
+ufireb	rts
+
+
+;
+; Quoted stuff for scorelines
+;
+qhiscor					; 'HIbSCORE'
+	db	18,19,10,29,13,25,28,15
+	db	eol
+
+;
+; This is the string that redraws most of the static part of the
+; scoreline
+;
+scline
+	db	psxy,10,12
+	db	psquote
+	dw	lbonus
+	db	psxy,32,12
+	db	psquote
+	dw	rbonus
+	db	psxy,14,9
+	db	12,25,24,31,29				; 'BONUS'
+	db	psxy,4,9,22				; 'L'evel
+	db	eol

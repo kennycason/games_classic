@@ -1,0 +1,203 @@
+	subttl	'Scheduler'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;							;;
+;;			Scheduler			;;
+;;							;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;
+; SCHED - Creature update driver
+; Passed & returns: nothing
+; Uses: almost everything (AXY included)
+;
+sched	local
+	ldx	lstupd			; ccrit = lstupd
+	stx	ccrit
+	inx				; lstupd = ++lstupd < nobjs ? lstupd : 1
+	cpx	#nobjs
+	blt	:i1
+	ldx	#1
+:i1	stx	lstupd
+
+
+:loop	lda	vdone			; has a vbl interrupt happened?
+	beq	:1			; (no)
+
+:r	mv	lstupd,ccrit		; keep last critter updated...
+	rts				; and return to main foreground
+
+;
+; look at the next critter entry
+;
+:1	ldx	ccrit			; wrapped-around to lstupd?
+	cpx	lstupd
+	beq	:r			; yes -- nothing else to do, so punt
+
+	lda	cstat,x			; does this entry contain something?
+	and	#CTALIV			; (check the "I'm alive" bit)
+	beq	:cont			; (its not alive...so ignore it)
+
+:2	sec				; when was it updated last?
+	lda	clock
+	sbc	cupd,x
+	cmp	#2
+	bge	:update			; too long ago -- update it NOW
+
+;
+; loop continuation
+;
+:cont	ldx	ccrit			; ccrit = ccrit-- > 0 ? ccrit : nobjs-1
+	dex
+	bne	:cont1
+	ldx	#nobjs-1		; wraparound to end of table
+:cont1	stx	ccrit
+	bne	:loop			; [uncond]
+
+;
+; update the creature
+;
+:update	lda	cstat,x			; copy status bits
+	sta	ccstat
+	lda	cbits,x
+	sta	ccbits
+
+	lda	clock			; record the last time we
+	sta	cupd,x			;  updated this guy
+
+;
+; compute lmap index
+; remove critter from lmapc prior to move, so it doesn't leave a trail
+;
+	clc				; compute lmap index
+	ldy	clev,x
+	lda	cseg,x
+	adc	lmline,y
+	sta	vtmp			; and put into vtmp
+	tay				; zero entry in lmapc[]
+	ldiy	lmapc,0
+
+;
+; indirect jsr the critter handler
+;
+	ldy	ctyp,x
+	tldy	vtmp1,chndl
+	jsr	jvtmp1
+
+;
+; recopy status bits modified by creature handler
+;
+	pha				; (save return status)
+	ldx	ccrit			; recopy (modified) status
+	lda	ccbits
+	sta	cbits,x
+	lda	ccstat			; copy status info
+	sta	cstat,x
+	beq	:dead			; (zero ==> dead, so don't reinstall)
+
+;
+; creature is still alive, so reinstall it in the lmapc
+;
+	clc				; Y = lmap_index
+	ldy	clev,x
+	lda	cseg,x
+	adc	lmline,y
+	tay
+	txa
+	sta	lmapc,y
+
+:dead	pla				; (get status back)
+	beq	:cont			; (not moved, so don't redraw)
+
+;
+; The creature has changed position
+; Erase the critter's old position, if it was visible
+;
+	lda	cstat,x			; undraw if not already invisible
+	and	#CTUNDR
+	bne	:ud2
+	lda	coldm,x			; vtmp1 = old mode (for erase)
+	sta	vtmp1
+	lda	coldx,x			; AY = x,y position
+	ldy	coldy,x
+	jsr	redraw			; EOR the thing out of existance
+
+;
+; Handle invisible ==> visible transitions
+;
+	ldx	ccrit			; transition to invisible-mode?
+	lda	cstat,x
+	tay
+	and	#CTDISS
+	beq	:ud2			; (no)
+	tya
+	ora	#CTUNDR			; yes, so don't redraw
+	sta	cstat,x
+
+;
+; Redraw critter in new position, if its in visible mode
+;
+:ud2	lda	cxh,x			; update 'old' position
+	sta	coldx,x
+	lda	cyh,x
+	sta	coldy,x
+	lda	cmode,x			; setup to eor /old/ font
+	sta	coldm,x
+
+	lda	cstat,x			; transition to visible-mode?
+	tay
+	and	#CTDISS
+	bne	:ud3
+	tya
+	and	#$ff - [CTUNDR + CTDISS]
+	sta	cstat,x
+	tay
+
+;
+; Handle invisible ==> visible transitions
+;
+:ud3	tya
+	and	#CTDISS
+	bne	:jcont
+	lda	cmode,x			; vtmp1 = current mode
+	sta	vtmp1
+	lda	cxh,x			; AY = x,y position
+	ldy	cyh,x
+	jsr	redraw			; eor the thing into visibility
+:jcont	jmp	:cont
+	eject
+;
+; REDRAW - redraw a creature
+; Passed: A = X_position
+;	  Y = Y_position
+;	  X = critter#
+;	vtmp1 = critter mode# to draw / undraw
+; Uses: AXY, draw temps, vtmp
+;
+redraw	local
+	sta	vtmph			; save x,y position for VDraw call
+	sty	vdest
+
+	and	#3			; compute font#
+	asl	a
+	sta	vtmp
+	lda	vtmp1			; get critter mode#
+	asl	a			; A = mode# << 3 + x_position&3 << 1
+	asl	a
+	asl	a
+	ora	vtmp
+	tay
+	lda	fntbl,y			; vsrc -> critter font
+	sta	vsrc
+	lda	fntbl+1,y
+	sta	vsrc+1
+
+	ldx	vtmph			; X = x_position
+	ldy	vdest			; Y = y_position
+	jmp	vdraw			; let's go draw the bugger
+
+
+;
+; JVTMP1 - jump through VTMP1 indirect
+;
+jvtmp1	jmp	(vtmp1)
+

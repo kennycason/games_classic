@@ -1,0 +1,61 @@
+Unimplemented stuff
+-------------------
+Smarter barrel movement strategy
+	- Barrels look at joystick direction & Mario's state
+	- Tend to "run away" from active hammers
+
+Blue barrels
+
+Moving ladders
+	- State init
+	- Update
+	- Patches to Mario's ladder state handler
+
+Firebarrel
+	- initial drawing
+	- flame animation
+
+DLI in Elevator rack to hack PL3 <- PL1 (so fireballs don't look bad.)
+
+Punt PAL totally
+
+Punt barrel inviso-state
+
+Put yellow in fireball fonts
+
+
+Bug fixes
+---------
+Mario
+	- sticks on ladders sometimes
+	- Bogus jumpover on edges of screen
+	- install new, non-transparent fonts
+
+Collision detect loses when Mario doesn't touch the edge of an
+	object's kill area.
+
+Barrels go down adjacent to ladders
+
+Floating scores get messed-up on top of ladders (so move 'em.)
+Sequential floating-scores lose.
+
+VDRAW doesn't clip very well to the left (garbage created in middle of
+	the screen.)
+
+Wierd things with Luser-abort.  Punt ABORTP() during cartoon sequences
+	(only active during game play.)
+
+Fireball leap doesn't look very good (and probably should be punted.)
+
+Move 2nd hammer to the left on the Ramps rack.
+
+Need better lettering on HOWHI screen, also "PLAYER 1/2" indicator.
+
+Kong currently creates too many barrels (/really/ slowing down the
+	animation on the Ramps rack.)
+
+Kong is garbaged-up on the Elevators rack.
+
+Not all spring fonts are being shown (so punt a couple of them.)
+
+

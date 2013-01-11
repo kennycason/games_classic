@@ -1,0 +1,881 @@
+	subttl	'Pointers to code'
+;
+; These two macros simply store the low (resp. high) bytes of
+; exactly four arguments.
+;
+low4	macro	four_pointers
+%L	db	low %1, low %2, low %3, low %4
+	ENDM
+
+high4	macro	four_pointers
+%L	db	high %1, high %2, high %3, high %4
+	ENDM
+
+;
+; Pointers to crunched versions of LMAPs
+;
+scrlml	low4	lmap0, lmap1, lmap2, lmap3
+scrlmh	high4	lmap0, lmap1, lmap2, lmap3
+
+	if	false
+;
+; Cartoon initialization routines (foreground)
+;
+cartil	db	low icart0, low icart1, low icart2
+cartih	db	high icart0, high icart1, high icart2
+	endif
+
+
+;
+; Creature handlers
+;
+chndll	db	low ubar, low ufb, low ufb, low usand
+	db	low uspr, low uladr, low rts
+chndlh	db	high ubar, high ufb, high ufb, high usand
+	db	high uspr, high uladr, high rts
+	subttl	'Pointers to fonts, etc'
+;
+; Pointers to even girder fonts
+;
+gfntl	low4	blank,fgird1,rivet,fgird3
+	low4	fgird4,blank,blank,blank
+gfnth	high4	blank,fgird1,rivet,fgird3
+	high4	fgird4,blank,blank,blank
+
+;
+; Pointers to odd girder fonts
+;
+gfnt1l	low4	blank,fgird2,rivet,fgird3
+	low4	fgird4,blank,blank,blank
+gfnt1h	high4	blank,fgird2,rivet,fgird3
+	high4	fgird4,blank,blank,blank
+	eject
+;
+; Offsets into lmap, by line number
+;
+lmline	db	0,26,52,78,104,130,156
+
+;
+; Horizontal screen (pixel) offset of a segment
+;
+lmseg	db	4,10,16,22,28,34
+	db	40,46,52,58,64,70
+	db	76,82,88,94,100,106
+	db	112,118,124,130,136
+	db	142,148,154
+
+;
+; Starting segment of player, for appropriate racks:
+;
+ptsseg	db	3,5,0,1
+
+;
+; Bonus-life threshold
+;
+onxtlf	db	0,0,7,0,0,0
+
+;
+; First digit of bonus-clock for appropriate level
+;
+bcdigi	db	5,6,7,8,8
+
+;
+; Score table (single digit for hacking hundreds-digit)
+;
+sctbl	db	1,3,5,8,0
+
+
+;
+; how much prizes are worth (based on the current level#)
+;
+prizamt	db	sc300+SCFLOT, sc500+SCFLOT, sc800+SCFLOT
+	db	sc800+SCFLOT, sc800+SCFLOT
+
+
+;
+; enable_bits for actions in the various screens
+;
+enable	db	enlady+entkong		; Ramps
+	db	enlkong			; Zigr
+	db	enlady+enskong		; Elev
+	db	enlkong+enlady		; Conv
+
+
+;
+; This is the display-list header.  It consists of 23 blank lines, and
+; a DL-jump to the graphics display list area, causing another blank
+; line.
+;
+dlist	db	dlbl8,dlbl8,dlbl7
+	db	dljmp
+	dw	dbase
+
+;
+; This is the Null display list.  It is used during setup and init
+;  time to make sure the screen doesn't roll or anything.
+;
+nulldl	db	dljvb
+	dw	nulldl
+	subttl	'DLI line numbers'
+; Where to put DLI lines
+; The first four bytes are offsets pointing to the start of a vector of
+; display-list offsets to put DLI enable bits.
+; The list is terminated with a $ff.
+;
+dlilns	local
+	db	:dli0-dlilns, :dli1-dlilns, :dli2-dlilns, :dli3-dlilns
+
+:dli0	odline	32			; hack PF2 <- PF1
+	odline	192			; restore PF2
+	db	$ff				; (endit)
+
+:dli1	odline	42			; hack PL3 for prize
+	odline	156			; hack PL3 for prize
+	db	$ff
+
+:dli2	odline	72			; hack PL3 for prize
+	odline	94			; hack PL3 again...
+	db	$ff
+
+:dli3	odline	80			; hack PL3 for prize
+	odline	118			; hack PL3 for prize
+	db	$ff
+	subttl	'Pristine crunched lmaps'
+; The Racks pristine lmap
+;
+lmap0
+	db	lmapgs			; per-rack variables
+	db	1,3			; hammer levels
+	db	124,148			; hammer_x
+	db	134,69			; hammer_y
+
+	dw	init0			; init code for lmap
+	dw	setup0			; graphics setup
+	dw	dli0			; DLI handler for Ramps
+
+	db	0,0,0			; no prizes at all...
+	db	0,0,0
+	db	0,0,0
+	db	0,0,0
+
+	dw	v4ladr			; four_long ladder
+	dw	vladr			; one_long ladder
+	dw	vsladr			; one_long ladder rung
+	db	106,61			; x_pos, y_max of double ladders
+	db	0			; y_min of double ladders
+
+	db	nlmapln-1		; destination level
+	db	$ff			; no kill level
+	db	76,2			; lady's x,y position base
+	db	124,29			; Kong's x,y position base
+	db	4			; Kong's lmap level
+	db	20			;   and his approximate segment#
+
+	db	$80+10,1				; level 0
+	db	2,LDBOTB+1,1
+	db	$89,1
+	db	2,LDBOT+1,1
+	db	$83,1
+
+	db	$84,1				; level 1
+	db	$81,LDBOT+1
+	db	$85,1
+	db	3,LDTOPB+1,1,LDBOT+1
+	db	$80+7,1
+	db	6
+	db	 1+HAMASK,LDTOP+1,1,1,0,0
+
+	db	5,0,0,1,1,LDTOP+1		; level 2
+	db	$82,1
+	db	8,LDBOTB+1,1,1,1,1,LDTOP+1,1,LDBOT+1
+	db	$86,1
+	db	$81,LDBOT+1
+	db	$84,1
+
+	db	$84,1				; level 3
+	db	$81,LDBOT+1
+	db	5
+	db	 1,1,LDTOPB+1,1,LDBOTB+1
+	db	$84,1
+	db	12,LDTOP+1,1,1,1,LDBOTB+1,1,1,LDTOP+1,1,1,0+HAMASK,0
+
+	db	$82,0				; level 4
+	db	$82,1
+	db	$81,LDTOP+1
+	db	$84,1
+	db	3,LDTOPB+1,1,LDBOT+1
+	db	$86,1
+	db	$81,LDTOPB+1
+	db	$87,1
+
+	db	$80+11,0				; level 5
+	db	2,LDTOP+1,1
+	db	$84,1
+	db	$89,0
+
+; height tables
+	db	$80+26,184
+	db	$80+26,151
+	db	$80+26,118
+	db	$80+26,85
+	db	$80+26,61
+	db	$80+26,32
+
+; ladder tables
+	db	$80+26,1				; lev 0
+
+	db	$80+10,2				; lev 1
+	db	3,0,2,2
+	db	$80+13,0
+
+	db	$87,1				; lev 2
+	db	$85,3
+	db	$82,1
+	db	$80+12,3
+
+	db	$87,4				; lev 3
+	db	3,2,2,4
+	db	$88,2
+	db	2,4,2
+	db	$86,2
+
+	db	$80+11,3				; lev 4
+	db	$81,5
+	db	$80+14,3
+
+	db	$80+26,4				; lev 5
+
+	db	0
+	eject
+; The Ziggurate pristine (and crunched) lmap
+;
+lmap1
+	db	lmapgs		; per-rack stuff
+	db	2,3			; hammer levels
+	db	12,76			; hammer_x
+	db	89,51			; hammer_y
+
+	dw	init1			; Zigurrat lmap init
+	dw	setup1			; Zigurrat graphics init
+	dw	dli1			; DLI handler
+
+	db	pmx+4+4*6		; player x_positions for prizes
+	db	pmx+4+[lmapwid-2]*6
+	db	pmx+4+[lmapwid/2]*6
+	db	pmy+41-[priz1-priz0]	; player y_offsets for prizes
+	db	pmy+155-[priz1-priz0]
+	db	pmy+191-[priz1-priz0]
+	db	priz0, priz3, priz2	; prize types
+	db	4,1,0			; prize lmap levels
+
+	dw	r4ladr			; red ladder, four high
+	dw	rladr			; red ladder, one high
+	dw	rsladr			; red ladder rung, one high
+	db	0,0			; no double ladders
+	db	0			; bogus minimum_y of double ladders
+
+	db	$ff			; no destination level
+	db	$ff			; no kill level
+	db	0,0			; (bogus) lady x,y position
+	db	72,9			; Kong's x,y position base
+	db	4			; Kong's lmap_level
+	db	12			;    and 'prox segment
+
+	db	2,3,3+LDBOT		; level 0
+	db	$87,3
+	db	2,3+LDBOT,3
+	db	$86,3
+	db	2,3+LDBOT,3
+	db	$85,3
+	db	2,3+LDBOT,3
+
+	db	3,0,3+LDTOP,3+LDBOT	; level 1
+	db	$83,3
+	db	4,GRRIVE+RIMASK,3,3,3+LDTOP
+	db	16,3,3,3,3+LDBOT,3,3,3,3+LDTOP,3,GRRIVE+RIMASK
+	db	  3,3,3,3+LDBOT,3+LDTOP,0
+
+	db	8			; level 2
+	db	  0,HAMASK+0,3+LDTOP,3+LDBOT,3,3,GRRIVE+RIMASK,3+LDBOT
+	db	$85,3
+	db	2,3+LDTOP,3
+	db	$83,3
+	db	8
+	db	  3+LDBOT,GRRIVE+RIMASK,3,3,3+LDBOT,3+LDTOP,0,0
+
+	db	$83,0			; level 3
+	db	6
+	db	  3+LDTOP,3+LDBOT,3,GRRIVE+RIMASK,3+LDTOP,3+LDBOT
+	db	$83,3
+	db	1,3+HAMASK
+	db	$84,3
+	db	9
+	db	  3+LDBOT,3+LDTOP,GRRIVE+RIMASK,3,3+LDBOT,3+LDTOP,0,0,0
+
+	db	$84,0			; level 4
+	db	5
+	db	  3+LDTOP,3,GRRIVE+RIMASK,3,3+LDTOP
+	db	$88,3
+	db	5
+	db	  3+LDTOP,3,GRRIVE+RIMASK,3,3+LDTOP
+	db	$84,0
+
+	db	$80+26,0			; level 5
+
+;
+; height tables
+	db	$80+26,191
+	db	$80+26,155
+	db	$80+26,117
+	db	$80+26,79
+	db	$80+26*2,41
+
+;
+; ladder tables
+	db	$80+26,1			; level 0
+
+	db	3,0,0,2			; level 1
+	db	$80+10,0
+	db	$84,2
+	db	$86,0
+	db	3,2,0,0
+
+	db	3,1,1,1			; level 2
+	db	$80+10,3
+	db	$85,1
+	db	$85,3
+	db	3,1,1,1
+
+	db	$84,2			; level 3
+	db	4,4,4,4,2
+	db	$80+10,4
+	db	8
+	db	  2,2,2,4,2,0,0,0
+
+	db	$80+26*2,3		; level 4,5
+
+	db	0
+	eject
+;
+; The Conveyerbelts pristine, crunched lmap
+;
+lmap3
+	db	lmapgs			; space for rack info
+	db	1,2			;  levels for hammer 0,1
+	db	76,12			; hammer_x
+	db	127,89			; hammer_y
+
+	dw	init3			; graphics init code
+	dw	setup3			; lmap setup code
+	dw	dli3			; DLI handler
+
+	db	pmx+4+18*6		; prize x_positions
+	db	pmx+4+7*6
+	db	pmx+4+[lmapwid/2]*6
+	db	pmy+79-[priz1-priz0]	; PL3 offsets for prizes
+	db	pmy+117-[priz1-priz0]
+	db	pmy+191-[priz1-priz0]
+	db	priz1, priz0, priz3	; prize types
+	db	3,2,0			; prize level#s
+
+	dw	v4ladr			; four_long blue ladder
+	dw	vladr			; one_long blue ladder
+	dw	vsladr			; one_long blue ladder rung
+	db	40,41			; x_pos, y_max of double ladders
+	db	6			; y_min of double ladders
+
+	db	4			; target lmap level
+	db	$ff			; no kill level
+	db	112,12			; lady's x,y position
+	db	72,9			; Kong's x,y position base
+	db	0,0			;   level and segment are "don't care"
+
+	db	3,1,1,1+LDBOT		; level 0
+	db	$85,1
+	db	$81,1+LDBOT
+	db	$87,1
+	db	$81,1+LDBOT
+	db	$86,1
+	db	3,1+LDBOT,1,1
+
+	db	3,4,4,4+LDTOP		; level 1
+	db	$84,4
+	db	2,4+LDBOT,4+LDTOP
+	db	$83,4
+	db	$81,HAMASK+4
+	db	$83,4
+	db	2,4+LDTOP,4+LDBOT
+	db	$85,4
+	db	3,4+LDTOP,4,4
+
+	db	9			; level 2
+	db	 0,HAMASK+1,1,1+LDBOT,1,0,0,1+LDTOP,1+LDBOT
+	db	$87,1
+	db	10
+	db	 1+LDBOT,1+LDTOP,0,0,1,1,1+LDBOT,1,1,0
+
+	db	4			; level 3
+	db	 4,4,4+LDBOT,4+LDTOP
+	db	$84,4
+	db	9
+	db	 4+LDTOP,4,4,0,0,4,4,4,4+LDTOP
+	db	$85,4
+	db	4,4+LDTOP,4+LDBOT,4,4
+
+	db	3,4,4,4+LDTOP		; level 4
+	db	$80+20,4
+	db	3,4+LDTOP,4,4
+
+	db	$80+26,0			; level 5
+
+;
+; height tables
+;
+	db	$80+26,191		; lev 0
+	db	$80+26,155
+	db	$80+26,117
+	db	$80+26,79
+	db	$80+26*2,41		; lev 5
+
+;
+; ladder dest tables
+;
+	db	$80+26,1			; lev 0
+
+	db	$87,0			; lev 1
+	db	$81,2
+	db	$89,0
+	db	$86,2
+	db	$83,0
+
+	db	$87,3			; lev 2
+	db	$81,1
+	db	$89,3
+	db	$85,1
+	db	$84,3
+
+	db	$83,4			; lev 3
+	db	$80+20,2
+	db	$83,4
+
+	db	$80+26*2,3		; lev 4,5
+
+	db	0			; endit
+	eject
+;
+; The Elevators pristine, crunchified lmap
+;
+lmap2
+	db	lmapgs			; space for rack globals
+	db	0,0			; hammers are "don't care..."
+	db	nwide+1,nwide+1		; x_pos is off screen
+	db	nlines,nlines		; and so is y_pos
+
+	dw	init2			; graphics init code
+	dw	setup2			; lmap init code
+	dw	dli2			; DLI handler code
+
+	db	pmx+4+25*6, pmx+4+1*6, pmx+4+9*6	; prize x_positions
+	db	pmy+71-[priz1-priz0]			; player 3 offsets for prizes
+	db	pmy+93-[priz1-priz0]
+	db	pmy+162-[priz1-priz0]
+	db	priz1, priz0, priz3	; prize types
+	db	3,2,0			; prize level#s
+
+	dw	v4ladr			; vanilla 4_long blue ladder
+	dw	vladr			; one_long ladder segment
+	dw	vsladr			; one_long ladder rung
+	db	28,56			; x_pos, y_max of double ladders
+	db	24			; y_min of double ladders
+
+	db	4			; target level for winnage
+	db	5			; killage level (bump Mario off if he ever gets here...)
+	db	64,0			; lady's x,y position base
+	db	4,24			; Kong's x,y position base
+	db	3			; Kong's lmap level
+	db	0			;    and rightmost segment#
+
+	db	26			; lev 0
+	db	 1,1+LDBOT,1,0,GRBLNK,GRBLNK,0,0,1+LDBOT,1,1+LDBOT
+	db	 0,GRBLNK,GRBLNK,0,1,1,0,1,1,0,1,1,0,1+LDBOT,1
+
+	db	6			; lev 1
+	db	 1,1+LDTOP,1+LDBOT,0,GRBLNK,GRBLNK
+	db	$86,0
+	db	14
+	db	 GRBLNK,GRBLNK,0,0,1,1+LDBOT,1,0,1,1+LDBOT
+	db	 0,1,1+LDTOP,1
+
+	db	26			; lev 2
+	db	 1,1,1+LDTOP,0,GRBLNK,GRBLNK,0
+	db	 1,1+LDTOP,1,1+LDTOP
+	db	 0,GRBLNK,GRBLNK,0,0,1,1+LDTOP
+	db	 0,1+LDBOT,0,1+LDTOP
+	db	 1,1,1,1+LDBOT
+
+	db	$80+11,1			; lev 3
+	db	1,1+LDBOT
+	db	$87,1
+	db	7
+	db	 1+LDTOP,0,1,1,0,1,1+LDTOP
+
+	db	$87,0				; lev 4 (top)
+	db	$84,1
+	db	1,1+LDTOP
+	db	$80+14,0
+
+	db	$80+26,1			; lev 5 (deadly)
+
+;
+; hei tables
+;
+	db	$84,178				; lev 0
+	db	$83,190
+	db	$85,162
+	db	$83,190
+	db	$83,178
+	db	$83,171
+	db	$83,164
+	db	$82,157
+
+	db	$84,141				; lev 1
+	db	$80+12,147
+	db	$83,122
+	db	$84,128
+	db	$83,134
+
+	db	$84,93				; lev 2
+	db	$82,104
+	db	$86,93
+	db	$83,104
+	db	$84,89
+	db	$81,83
+	db	$86,104
+
+	db	$80+21,56			; lev 3
+	db	$82,77
+	db	$83,71
+
+	db	$80+26,29			; lev 4
+
+	db	$80+26,191			; lev 5
+
+;
+; ladder tables
+;
+	db	$88,1				; lev 0
+	db	$80+16,2
+	db	$82,1
+
+	db	$82,0				; lev 1
+	db	$80+22,2
+	db	$82,0
+
+	db	$88,1				; lev 2
+	db	$89,0
+	db	$82,1
+	db	$82,3
+	db	$84,1
+	db	1,3
+
+	db	$80+19,4			; lev 3
+	db	$87,2
+
+	db	$80+26,3			; lev 4
+
+	db	$80+26,0			; lev 5 ("don't care")
+
+	db	0
+	subttl	'Barrel difficulty'
+; This table governs how often a rolling barrel should follow a down-
+; going ladder.
+;
+badiff	perc	10		; fall 20% of the time
+	perc	20		; 30%, etc...
+	perc	30
+	perc	30
+	perc	35
+
+;
+; Should a spawned barrel be vicious?
+; When true, indicates that a really mean falling barrel should be
+; created.
+;
+sbadiff	perc	05
+	perc	10
+	perc	20
+	perc	30
+	perc	35
+
+;
+; Jiffy-times between creation of barrels.
+; As the difficulty level goes up, barrels are created faster and faster
+;
+sbadly	db	120
+	db	100
+	db	90
+	db	80
+	db	60
+
+;
+; Maximum number of barrels active at once
+;
+smaxba	db	6
+	db	7
+	db	8
+	db	8
+	db	8
+	subttl	'Firecritter difficulty'
+; Time delay (in bonus ticks) for firecreatures to update their
+; movement, via their movement heuristics.
+; Ideally the critters should have a faster reaction time as the game
+; gets harder, and this table does just that...
+;
+fbcnt	db	5
+	db	4
+	db	3
+	db	2
+	db	2
+
+;
+; Should we switch levels?
+; This is the oracle used by firecritters when they are near a ladder,
+;  and are wondering whether to follow it or not.
+;
+fblev	perc	30		; switch level 30% of the time
+	perc	40
+	perc	40
+	perc	45
+	perc	50
+
+;
+; Creation difficulty
+; Used by foreground creation heuristic to determine whether or not
+;  to spawn a vicious firecritter
+;
+fbdiff	perc	10
+	perc	20
+	perc	40
+	perc	50
+	perc	60
+
+;
+; Creation delay
+; In Zigurrat and Conveyerbelt racks, the delay time (in jiffies)
+;  for firecriiter creation.
+;
+scddly	db	240
+	db	150
+	db	130
+	db	115
+	db	100
+
+;
+; Maximum number of firecritters
+;
+smaxfth	db	4
+	db	5
+	db	5
+	db	5
+	db	5
+	subttl	'Spring difficulty'
+;
+; How Hard Can You Get? [*sigh*]
+;
+; This table governs how often a spring is to be created.  The numbers
+; here are in jiffies.
+;
+sprdly	db	120			; lev 0 (bogus)
+	db	120			; first elev rack (really easy)
+	db	110			; second (an easy pattern)
+	db	100			; third -- sorta hard
+	db	90			; fourth -- very hard (but possible)
+
+
+;
+; Creation position for springs (a cycle of four)
+;
+sprpos	db	4,5,6,7
+	subttl	'Sandpile difficulty'
+;
+; (jiffy) creation delays for sandpiles
+;
+sndly	db	240
+	db	180
+	db	150
+	db	130
+	db	120
+	subttl	'PAL and NTSC tunables'
+; Its a long story.  In order to get PAL compatibility, ALL of the
+; following equates will have to be munged, twiddled, mutated and
+; permuted.  Look here if something isn't moving as fast as it should,
+; or as slow as it should, or if the color assignments are off.  The
+; first table contains NTSC stuff, the second table contains PAL stuff.
+; ["Stuff" in this context means anything used as a velocity or
+; constant depending on something that is somehow different in PAL.]
+;
+
+;
+; NTSC constants go here.
+;
+ntscstuf =	*
+
+;
+; Inital colors
+;
+colors	db	$34,$2d,$36,$86
+	db	$34,$88,$2a,$0a
+	db	$00
+
+;
+; PAL constants go here.  [and I'm gonna start screaming....]
+;
+palstuf	=	*
+	subttl	'Shifted Graphics Tables'
+; Equates for locating the shifted versions of creature fonts.
+; They overlay each other, depending on what the current rack is.
+;
+;
+; Fonts for creatures [offsets into fntbl, not including shift for
+; hacking fractional-byte X-positioning.]
+;
+fnbar	=	0			; rolling barrels, beams
+fnfbr	=	4			; falling barrels, beams
+fnfib	=	8			; fireballs & blue fireballs
+fnfif	=	$c			; firefoxen & blue firefoxen
+fnsan	=	$10			; sandpiles, large sandpiles
+fnspr	=	$14			; springs
+
+;
+; sizes of shifted versions of creatures
+; *MUST* be altered to reflect changes in fonts!
+;
+fshbrs	=	3*11+2			; rolling barrels, etc
+fshbfs	=	4*11+2			; falling barrels, etc
+fshfis	=	4*16+2			; fireballs & firefoxen
+fshsas	=	4*16+2			; sandpiles et al
+fshsps	=	3*16+2			; springs
+
+;
+; bases for shifted versions of creatures
+;
+fshfi0	=	shfont			; fireballs come first
+fshbr0	=	fshfi0 + 12*fshfis	; then rolling barrels
+fshbf0	=	fshbr0 + 12*fshbrs	; then falling barrels
+fshsa0	=	fshbr0			; sandpiles (overlay barrels)
+fshsp0	=	fshbr0			; springs (overlay barrels)
+
+;
+; Table of pointers to shifted fonts.
+;
+fntbl	=	*
+
+; 0 - rolling barrels and beams
+	dw	fnbar0,fshbr0 + fshbrs*0, fshbr0 + fshbrs*1, fshbr0 + fshbrs*2
+	dw	fnbar1,fshbr0 + fshbrs*3, fshbr0 + fshbrs*4, fshbr0 + fshbrs*5
+	dw	fnbar2,fshbr0 + fshbrs*6, fshbr0 + fshbrs*7, fshbr0 + fshbrs*8
+	dw	fnbar3,fshbr0 + fshbrs*9, fshbr0 + fshbrs*$a, fshbr0 + fshbrs*$b
+
+; 1 - falling barrels and beams
+	dw	fnfbr0,fshbf0 + fshbfs*0, fshbf0 + fshbfs*1, fshbf0 + fshbfs*2
+	dw	fnfbr1,fshbf0 + fshbfs*3, fshbf0 + fshbfs*4, fshbf0 + fshbfs*5
+	dw	fnfbr2,fshbf0 + fshbfs*6, fshbf0 + fshbfs*7, fshbf0 + fshbfs*8
+	dw	fnfbr3,fshbf0 + fshbfs*9, fshbf0 + fshbfs*$a, fshbf0 + fshbfs*$b
+
+; 2 - fireballs
+	dw	fnfib0,fshfi0 + fshfis*0, fshfi0 + fshfis*1, fshfi0 + fshfis*2
+	dw	fnfib1,fshfi0 + fshfis*3, fshfi0 + fshfis*4, fshfi0 + fshfis*5
+	dw	fnfib2,fshfi0 + fshfis*6, fshfi0 + fshfis*7, fshfi0 + fshfis*8
+	dw	fnfib3,fshfi0 + fshfis*9, fshfi0 + fshfis*$a, fshfi0 + fshfis*$b
+
+; 3 - firefoxen
+	dw	fnfif0,fshfi0 + fshfis*0, fshfi0 + fshfis*1, fshfi0 + fshfis*2
+	dw	fnfif1,fshfi0 + fshfis*3, fshfi0 + fshfis*4, fshfi0 + fshfis*5
+	dw	fnfif2,fshfi0 + fshfis*6, fshfi0 + fshfis*7, fshfi0 + fshfis*8
+	dw	fnfif3,fshfi0 + fshfis*9, fshfi0 + fshfis*$a, fshfi0 + fshfis*$b
+
+; 4 - sandpiles
+	dw	fnsan0,fshsa0 + fshsas*0,fshsa0 + fshsas*1,fshsa0 + fshsas*2
+	dw	fnsan1,fshsa0 + fshsas*3,fshsa0 + fshsas*4,fshsa0 + fshsas*5
+	dw	fnsan2,fshsa0 + fshsas*6,fshsa0 + fshsas*7,fshsa0 + fshsas*8
+	dw	fnsan3,fshsa0 + fshsas*9,fshsa0 + fshsas*$A,fshsa0 + fshsas*$B
+
+; 5 - springs
+	dw	fnspr0,fshsp0 + fshsps*0,fshsp0 + fshsps*1,fshsp0 + fshsps*2
+	dw	fnspr1,fshsp0 + fshsps*3,fshsp0 + fshsps*4,fshsp0 + fshsps*5
+	dw	fnspr2,fshsp0 + fshsps*6,fshsp0 + fshsps*7,fshsp0 + fshsps*8
+	dw	fnspr3,fshsp0 + fshsps*9,fshsp0 + fshsps*$A,fshsp0 + fshsps*$B
+	subttl	'Collision boxes'
+;
+; Each creature has a 'kill-box' that the protagonist cannot intrude
+; upon without getting killed.  Before the protagonist is moved, a quick
+; check is made to see if Mario has enroached upon any critter's kill
+; area.  Since the creature fonts are so diversified, it is necessary
+; for each font to have a kill area that is slightly different in size
+; and shape from the others.
+;
+; XYOffs[] is a table of x,y offsets for each creature font.  Added to
+;	the creature's x,y position, it gives the upper right hand x,y
+;	position of the kill-box.
+;
+; XYSiz[] is the x,y size (in pixels) of the kill box.
+;
+xyoffs	db	1,1			; rolling barrels (all the same)
+	db	1,1
+	db	1,1
+	db	1,1
+
+	db	0,1			; falling barrels
+	db	0,1
+	db	0,1
+	db	0,1
+
+	db	1,5			; fireballs
+	db	2,5
+	db	1,5
+	db	1,5
+
+	db	1,5			; firefoxen
+	db	1,5
+	db	1,5
+	db	1,5
+
+	db	0,3			; sandpiles
+	db	0,3
+	db	0,3
+	db	0,3
+
+	db	0,0			; springs
+	db	0,0
+	db	0,0
+	db	0,0
+
+xysiz	db	6,9			; rolling barrels (identical)
+	db	6,9
+	db	6,9
+	db	6,9
+
+	db	10,9			; falling barrels (clones again)
+	db	10,9
+	db	10,9
+	db	10,9
+
+	db	7,11			; fireballs
+	db	8,11
+	db	7,11
+	db	8,11
+
+	db	10,10			; firefoxen
+	db	8,9
+	db	10,10
+	db	8,9
+
+	db	10,5			; sandpiles
+	db	10,5
+	db	10,5
+	db	10,5
+
+	db	7,6			; springs
+	db	7,6
+	db	7,6
+	db	7,6

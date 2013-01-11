@@ -1,0 +1,361 @@
+	subttl	'Miscellaneous subroutines'
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;							;;
+;;		Miscellaneous Subroutines		;;
+;;							;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;
+; UNPACK - unpack compressed data
+; Passed: tmp -> source area
+;	  tmp1-> dest area
+; Returns: nothing
+; Uses: AXY, tmp, tmp1, tmp2
+;
+; Method: Data is compressed in the following format:
+;
+; data	::= <repeat> <byte> | <block> <data> | <blkdup> <data> | <end>
+; end	::= $00
+; data	::= <byte> <data> | <data>
+; block ::= %0xxxxxxx			[ 'xxxxxxx' = length ]
+; repeat::= %10xxxxxx			[ 'xxxxxx' = length ]
+; blkdup::= %11xxxxxx <size>		[ 'xxxxxx' = length ]
+;
+; 'repeat' will repeat the next byte 'xxxxxx' times.
+; 'block' quotes the next block of 'xxxxxxx' bytes.
+; 'blkdup' will duplicate the next block of 'size' bytes 'xxxxxx' times.
+;
+;
+; Bugs: a repeat count of zero in the source will cause Unpack to
+;	fill 256 bytes with the appropriate byte, and to advance the
+;	destination pointer by ZERO.
+;
+unpack	local
+:loop	ldy	#0
+	lda	(tmp),y			; get type of thing to unpack
+	beq	:r			; $00 ==> end, so return
+	bmi	:dup			; $80..$ff ==> dup, so duplicate
+
+;
+; copy a bunch of bytes from the source
+;
+	tax				; X = byte count
+	dinc	tmp			; realign source pointer
+:1	lda	(tmp),y			; get source byte....
+	sta	(tmp1),y		;  ...and shove it into dest
+	dinc	tmp			; ++ source pointer
+	dinc	tmp1			; ++ dest pointer
+	dex				; -- byte count
+	bne	:1			; (more to do)
+	beq	:loop			; [uncond]
+
+:dup	cmp	#%11000000		; block duplicate?
+	and	#$3f			; get length
+	bcs	:dupblk			; (yes)
+
+;
+; duplicate a byte
+;
+	tax				;  into X
+	iny				; get byte to duplicate
+	lda	(tmp),y
+	dey
+
+:2	sta	(tmp1),y		; store byte in dest
+	dinc	tmp1			; ++ dest pointer
+	dex
+	bne	:2
+
+	lda	#2
+:4
+	clc				; tmp += 2
+	adc	tmp
+	sta	tmp
+	bcc	:loop
+	inc	tmph
+	bne	:loop			; ["uncond"]
+
+;
+; duplicate a block of bytes
+;
+:dupblk	sta	yi			; yi = repeat count
+	dinc	tmp
+	lda	(tmp),y			; hei = pristine block size
+	sta	hei
+	dinc	tmp
+;
+; copy one block
+;
+:3	ldx	hei			; X = block size
+	dmv	tmp2,tmp		; tmp2 -> block
+:5	lda	(tmp2),y		; get src byte
+	sta	(tmp1),y		;    and shove into dest
+	dinc	tmp1			; ++ pointers
+	dinc	tmp2
+	dex				; -- count
+	bne	:5			; [more bytes to copy]
+
+	dec	yi			; -- block count
+	bne	:3			; [more blocks to duplicate]
+	lda	hei			; adjust source pointer & continue
+	bne	:4			; ["uncond"]
+
+:r	rts
+	eject
+; FSHIFT - Create a set of shifted fonts
+; Passed: A = font set index (to FNTBL[]) to shiftify
+; Returns: 12 shiftified fonts, in the right places in Ram
+; Uses: AXY, tmp*, draw temps
+;
+fshift	local
+	asl	a		; tmp2 = X = fontindex << 3
+	asl	a		; (which is the initial FNTBL index)
+	asl	a
+	sta	tmp2
+	ldi	tmp2h,3		; tmp2h = font count
+
+:mloop	ldx	tmp2		; get FNTBL index
+	lda	fntbl,x		; point SRC at the pristine font
+	sta	src		;  (which is lurking somewhere in Rom)
+	lda	fntbl+1,x
+	sta	src+1
+
+	ldi	shcnt,1		; init shift count
+:4	lda	shcnt		; dest -> dest area in mem
+	asl	a
+	adc	tmp2
+	tax
+	lda	fntbl,x
+	sta	dest
+	lda	fntbl+1,x
+	sta	dest+1
+
+	jsr	:shifnt		; shift the beastie
+	inc	shcnt		; ++ shift count
+	lda	shcnt
+	cmp	#4		; done three?
+	blt	:4
+
+	clc			; tmp2 += 8 (index of next pristine font)
+	lda	tmp2
+	adc	#8
+	sta	tmp2
+
+	dec	tmp2h		; -- font count
+	bpl	:mloop		; (more fonts to shuffle)
+	rts
+
+;
+; :SHIFNT - called by FSHIFT to shift one font
+; Passed: src, dest, shcnt = shift_count
+;
+:shifnt	ldy	#0			; copy width
+	lda	(src),y
+	sta	rn
+	clc				; dest = wid+1
+	adc	#1
+	sta	(dest),y
+
+	iny				; copy hei
+	lda	(src),y
+	sta	hei
+	sta	(dest),y
+
+	iny				; setup src, dest indeci
+	sty	si
+	sty	xi
+
+:loop	ldi	shbits,0		; shift in clear bits on the left
+	mv	tmp,rn			; setup src byte count
+
+:loop1	ldy	si			; get src byte
+	lda	(src),y
+	pha				; (save it for later...)
+
+	ldx	shcnt			; shift the bugger right
+:1	lsr	shbits
+	ror	a
+	lsr	shbits
+	ror	a
+	dex
+	bne	:1
+
+	ldy	xi			; stuff it into dest font
+	sta	(dest),y
+	inc	xi			; ++ indeci
+	inc	si
+
+	pla				; get original byte back
+	sta	shbits
+	dec	tmp			; -- horz byte count
+	bne	:loop1
+
+	lda	shbits			; wrap up last byte
+	ldx	shcnt
+:2	asl	a			; shift left a little bit
+	asl	a
+	inx
+	cpx	#4			; enough?
+	blt	:2
+	ldy	xi			; put into dest
+	sta	(dest),y
+	inc	xi
+
+	dec	hei			; -- height count
+	bne	:loop
+
+	clc				; dest += dest index
+	lda	dest
+	adc	xi
+	sta	dest
+	lda	dest+1
+	adc	#0
+	sta	dest+1
+	rts
+	eject
+;
+; KBDINT - handle keyboard interrupts
+; Passed: nothing
+; Uses: nothing
+; Exports: keydb, if pause character typed
+;
+kbdint	local
+	lda	kbcode		; lets look at the key
+	cmp	#pausech	; is it the pause char?
+	bne	:r		; (nope, so ignore it)
+
+	lda	#3		; setup debounce jiffy count
+	sta	keydb		;  and let VBH worry about it
+
+:r	pla			; cleanup and return
+	rti
+
+
+;
+; CONSW - return contents of console switches
+; Returns: A = console switches
+;
+consw	lda	#8		; OS manual says to shove '8' in there
+	sta	consol		;  before we look
+	lda	consol		; so look
+	cmp	#7
+	rts
+abortp	=	consw		; (alias...)
+
+;
+; DCONSW - return contents of debounce console switches
+; Returns - A = console switches, after many vblanks
+; Uses: AXY
+;
+dconsw	local
+	jsr	consw		; get switches
+	beq	:r		; just ignore if nothing down
+
+	tay			; save 'em in Y
+:1	jsr	consw		; wait until the switches
+	bne	:1
+
+	lda	rtclok+2	; wait 5 vbls more
+	adc	#5
+:2	cmp	rtclok+2
+	bne	:2
+
+	tya			; return original switch value
+:r	rts
+
+
+;
+; SWAP - swap per-player areas
+; Swap the current player's state with the alternate player's state
+; Returns: nothing useful
+; Uses: AXY
+;
+swap	local
+	ldx	#usrlen-1	; # of bytes to swap
+:1	lda	usr,x		; get usr's, and save it
+	tay
+	lda	usr1,x		; move usr1 into usr
+	sta	usr,x
+	tya
+	sta	usr1,x		; and store usr in usr1's place
+	dex			; --count
+	bpl	:1
+	rts
+
+
+;
+; CLDISP - clear display memory
+; Returns: zeroed playfield and P/M memory
+; Uses: AY, tmp, tmp1, and lots of cycles
+;
+cldisp	local
+	dldi	tmp,gbase	; tmp = pointer to graphics mem
+	ldi	tmp1,high gsize	; tmp1 = page count
+
+	lda	#0
+	tay
+
+:1	sta	mis,y		; zero P/M mem
+	sta	pl0,y
+	sta	pl1,y
+	sta	pl2,y
+	sta	pl3,y
+	dey
+	bne	:1
+
+:2	sta	(tmp),y		; zero one page of graphics mem
+	dey
+	bne	:2
+
+	inc	tmph		; ++ MSB pointer
+	dec	tmp1		; -- page count
+	bne	:2		; (more to do)
+	rts
+
+
+;
+; SLEEP - waste cycles for a while
+; Passed: A = number of jiffies to sleep
+; Returns: after 'A' jiffies
+; Uses: AX
+;
+sleep	local
+	clc
+	adc	rtclok+2
+	tax
+:1	cpx	rtclok+2
+	beq	:r
+	jsr	abortp			; Luser interrupt?
+	beq	:1			; (no)
+:r	rts
+
+
+;
+; SNDOFF - reset sound flag registers (turning them off)
+; Passed: nothing
+; Returns: via SROFF()
+; Uses: AX
+;
+sndoff	local
+	lda	#0
+	ldx	#mstnum
+:soff	sta	mstate,x
+	dex
+	bpl	:soff
+
+
+;
+; SROFF - turn off sound registers
+; Passed: nothing
+; Returns: nothing
+; Uses: AX
+;
+sroff	local
+	lda	#0
+	ldx	#7
+:sroff	sta	audf1,x
+	dex
+	bpl	:sroff
+	rts
+	eject

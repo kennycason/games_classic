@@ -1,0 +1,933 @@
+;  COMBINED SOUND DATA FILE
+
+;****
+; INTRO.MAC
+;
+
+INTC1	EQU	$A8
+INTC2	EQU	$A8
+falfv	=	$16
+HOWLEN	equ	12
+falcv	=	$a3
+intle1	=	7
+intle2	=	$1b
+
+INTSDA
+HOWC1	=	INTSDA+$0
+HOWC2	=	INTSDA + $C
+INTF1	=	INTSDA + $18
+INTL1	=	INTSDA + $1E
+INTF2	=	INTSDA + $24
+INTL2	=	INTSDA + $3E
+HOWF1	=	INTSDA + $58
+HOWD1	=	INTSDA + $64
+HOWS1	=	INTSDA + $70
+HOWF2	=	INTSDA + $7C
+HOWD2	=	INTSDA + $88
+HOWS2	=	INTSDA + $94
+
+;HOWC1
+;	DB	$C9,$C9,$C9,$C9
+;	DB	$C9,$C9,$C9,$C9,$C8,$C8,$C8,$C8
+	DB	$80+8,$C9
+	DB	$80+4,$C8
+;HOWC2
+;	DB	0,0,0,0,0
+;	DB	$AC,$AB,$AB,$AB,$AB,$AB,$AA
+	DB	$80+5,0
+	DB	1,$AC
+	DB	$80+5,$AB
+	DB	13,$AA			;include INTF1 & INTL1
+
+;SOUND CHANNEL 1
+;INTF1
+	db	$A2,$AD,$F3,$CC,$D9,$F3
+
+;INTL1
+	db	$36,$56,$30,$28,$14,$3d
+
+;SOUND CHANNEL 2
+;INTF2
+;	DB	81,85,81,85,81,85,81
+;	DB	85,81,85,81,85,81,85,81,85,81
+;	DB	85,81,85,81,85,162,136,144,162
+	db	$C0+11,2,81,85
+	db	6
+	DB	162,136,144,162
+	DB	54,6
+
+;INTL2
+;	DB	54,6,3,3,3,3,3,3,3,3,3,3,3
+;	DB	3,3,3,3,3,3,3,3,3,48,40,20,61
+	db	$80+20,3
+	db	17
+	db	48,40,20,61
+;****
+; HOWMUCH.ASM
+;
+
+;	This data came from D:HOWMUCH.SND
+
+;       LOW BASS
+;HOWF1
+	DB	110,116,131,146
+	DB	161,173,197,218,197,146,197,146
+
+;HOWD1
+;	DB	8,4,4,4,4,4,5,11,22,20,21,20
+	db	8
+	db	$80+5,4
+	db	7			; sraddle
+	db	5,11,22,20,21,20
+;HOWS1
+;	DB	3,2,2,2,2,2,3,7,8,8,8,7
+	db	3
+	db	$80+5,2
+	db	6
+	db	3,7,8,8,8,7
+	
+;	This is sound channel 02
+;HOWF2
+;	DB	0,0,0,0,0,67,53,60,53,45,53,60
+	db	$80+5,0
+	db	7
+	db	67,53,60,53,45,53,60
+
+;HOWD2
+;	DB	4,4,4,4,4,25,10,10,10,21,18,13
+	db	$80+5,4
+	db	7
+	db	25,10,10,10,21,18,13
+;HOWS2
+;	DB	0,0,0,0,0,12,4,5,5,11,6,7
+	db	$80+5,0
+	db	7
+	db	12,4,5,5,11,6,7
+
+	db	0			;end of INTSDAT
+
+
+***********************************************************************
+***********************************************************************
+SNDDAT	ORG	0
+stpf3	=	SNDDAT + $0
+STPC3	=	SNDDAT + $18
+WLKC1	=	SNDDAT + $30
+JMPC1	=	SNDDAT + $3A
+RIVC1	=	SNDDAT + $6A
+RIVC2	=	SNDDAT + $79
+MR2C2	=	SNDDAT + $89
+MR1C2	=	SNDDAT + $D3
+ATKC2	=	SNDDAT + $F1
+HAMC	=	SNDDAT + $1A7
+SPRC4	=	SNDDAT + $1EC
+GRLC3	=	SNDDAT + $1FC
+GRLC4	=	SNDDAT + $1FC
+PNTC4	=	SNDDAT + $1FC
+WLKF1	=	SNDDAT + $22A
+JMPF1	=	SNDDAT + $234
+RIVF1	=	SNDDAT + $264
+RIVD1	=	SNDDAT + $273
+RIVS1	=	SNDDAT + $282
+RIVF2	=	SNDDAT + $291
+RIVD2	=	SNDDAT + $2A0
+RIVS2	=	SNDDAT + $2AF
+ROTC1	=	SNDDAT + $2BE
+ROTF1	=	SNDDAT + $34E
+MR2F2	=	SNDDAT + $3DE
+MR1F2	=	SNDDAT + $428
+ATKF2	=	SNDDAT + $445
+HAMF	=	SNDDAT + $4FB
+GRNF3	=	SNDDAT + $540
+GRNC3	=	SNDDAT + $551
+GRLF3	=	SNDDAT + $562
+GRLF4	=	SNDDAT + $566
+GRLD3	=	SNDDAT + $56A
+GRLD4	=	SNDDAT + $56A
+GRLS3	=	SNDDAT + $56E
+GRLS4	=	SNDDAT + $56E
+SPRF4	=	SNDDAT + $572
+PNTF4	=	SNDDAT + $581
+
+
+;stpf3
+;	db	$66,$66,$66,$66,$66,$66,$66,$66
+;	db	$66,$66,$66,$66,$66,$66,$66,$66
+;	db	$66,$66,$66,$66,$66,$66,$66,$66
+	DB	$80+24,$66
+
+;STPC3
+;	DB	$80,$81,$82,$83,$84,$85,$86,$87
+;	DB	$88,$89,$8A,$8B,$8C,$8D,$8E,$8F
+;	DB	$8F,$8F,$8F,$8F,$8F,$8F,$8F,$8F
+	DB	15
+	DB	$80,$81,$82,$83,$84,$85,$86,$87
+	DB	$88,$89,$8A,$8B,$8C,$8D,$8E
+	DB	$80+9,$8F
+
+****************************************************
+*
+*
+
+;WLKC1
+;	db	$a2,$a3,$a4,$a5,$a6,$a6,$a6,$a5,$a4,$a4
+	DB	11
+	db	$a2,$a3,$a4,$a5,$a6,$a6,$a6,$a5,$a4,$a4
+
+;JMPC1
+;	db	$a2,$a3,$a3,$a3,$a3,$a3,$a4,$a4
+;	db	$a4,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+;	db	$a6,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+;	db	$a6,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+;	db	$a6,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+;	db	$a6,$a6,$a6,$a6,$a5,$a5,$a4,$a4
+	DB	$A2
+	DB	$80+5,$A3
+	DB	$80+3,$A4
+	DB	$80+35,$A6
+	DB	$80+2,$A5
+	DB	$80+2,$A4
+
+
+;
+;RIVC1
+;	DB	0,0,0,0,0,0,0,0,0,0,0,0,$A9,$A9,$A9
+	DB	$80+12,0
+	DB	$80+19,$A9		;sraddling RIVC2
+
+;RIVC2
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+
+;MR2C2
+;	db	$a0,$a0,$a1,$a2,$a3,$a4,$a4,$a5,$a5,$a0
+;	db	$a0,$a0,$a2,$a3,$a4,$a4,$a5,$a5
+;	db	$a0,$a0,$a0,$a2,$a3,$a4,$a4,$a5
+;	db	$a5,$a0,$a0,$a0,$a0,$a0,$a0,$a0
+;	db	$a0,$a0,$a0,$a1,$a2,$a3,$a3,$a4
+;	db	$a4,$a4,$a5,$a5,$a5,$a5,$a0,$a0
+;	db	$a0,$a0,$a0,$a0,$a0,$a0,$a0,$a0
+;	db	$a0,$a0,$a0,$a0,$a0,$a0,$a1,$a2
+;	db	$a3,$a4,$a4,$a4,$a5,$a5,$a5,$a5
+
+	db	9
+	db	$a0,$a0,$a1,$a2,$a3,$a4,$a4,$a5,$a5
+	db	$C0+2,9
+	db	$a0,$a0,$a0,$a2,$a3,$a4,$a4,$a5,$a5
+	db	$80+10,$a0
+	db	4
+	db	$a1,$a2,$a3,$a3
+	db	$80+3,$a4
+	db	$80+4,$a5
+	db	$80+16,$a0
+	db	3
+	db	$a1,$a2,$a3
+	db	$80+3,$a4
+	db	$80+4,$a5
+
+
+;MR1C2
+;	db	$a0,$a0,$a0,$a0,$a0,$a0,$a1,$a2,$a3,$a3,$a3,$a4,$a4,$a4
+;	db	$a0,$a0,$a1,$a1,$a3,$a3,$a3,$a3
+;	db	$a0,$a0,$a1,$a2,$a3,$a3,$a3,$a0
+	db	$80+6,$a0
+	db	2
+	db	$a1,$a2
+	db	$80+3,$a3
+	db	$80+3,$a4
+	db	$80+2,$a0
+	db	$80+2,$a1
+	db	$80+4,$a3
+	db	$80+2,$a0
+	db	2
+	db	$a1,$a2
+	db	$80+3,$a3
+	db	1
+	db	$a0
+
+
+;ATKC2
+;	DB	$A1,$A2,$A2,$A3,$A3,$A4
+;	db	$a4,$a5,$a5,$a6,$a6,$a6,$a1,$a2
+;	db	$a2,$a3,$a3,$a4,$a4,$a5,$a5,$a6
+;	db	$a6,$a6,$a1,$a2,$a2,$a3,$a3,$a4
+;	db	$a4,$a5,$a5,$a6,$a6,$a6,$a1,$a2
+	db	$C0+3,12
+	DB	$A1,$A2,$A2,$A3,$A3,$A4
+	db	$a4,$a5,$a5,$a6,$a6,$a6
+	db	19
+	db	$a1,$a2
+;	db	$a2,$a3,$a3,$a4,$a4,$a5,$a5,$a6
+;	db	$a6,$a0,$a0,$a0,$a1,$a2,$a3,$a4
+	db	$a2,$a3,$a3,$a4,$a4,$a5,$a5,$a6
+	db	$a6,$a0,$a0,$a0,$a1,$a2,$a3,$a4
+;	db	$a4,$a5,$a5,$a5,$a1,$a1,$a1,$a2
+	db	$a4
+	db	$80+3,$a5
+	db	$80+3,$a1
+	db	3
+	db	$a2
+;	db	$a3,$a3,$a4,$a4,$a4,$a5,$a5,$a5
+	db	$a3,$a3
+	db	$80+3,$a4
+	db	$80+3,$a5
+;	db	$a1,$a2,$a3,$a4,$a5,$a5,$a2,$a3
+	db	1
+	db	$a1
+	db	$C0+2,5
+	db	$a2,$a3,$a4,$a5,$a5
+;	db	$a4,$a5,$a5,$a0,$a0,$a1,$a2,$a3
+	db	5
+	db	$a0,$a0,$a1,$a2,$a3
+;	db	$a4,$a4,$a4,$a5,$a5,$a1,$a2,$a2
+	db	$80+3,$a4
+	db	$80+2,$a5
+
+; changed last byte of the 4th sequences, so that we can have 4 times
+
+	db	$C0+4,12
+	db	$a1,$a2,$a2,$a3,$a3,$4,$a4,$a5,$a5,$a6,$a6,$a6
+;	db	$a3,$a3,$a4,$a4,$a5,$a5,$a6,$a6
+;	db	$a6,$a1,$a2,$a2,$a3,$a3,$a4,$a4
+;	db	$a5,$a5,$a6,$a6,$a6,$a1,$a2,$a2
+;	db	$a3,$a3,$a4,$a4,$a5,$a5,$a6,$a6
+;	db	$a6,$a1,$a2,$a2,$a3,$a3,$a4,$a4
+;	db	$a5,$a5,$a6,$a6,$a0,$a0,$a0,$a1
+	db	7
+	db	$a0,$a0,$a1
+	db	$a2,$a3,$a4,$a4
+;	db	$a2,$a3,$a4,$a4,$a5,$a5,$a5,$a1
+	db	$80+3,$a5
+	db	$80+3,$a1
+;	db	$a1,$a1,$a2,$a3,$a3,$a4,$a4,$a4
+	db	3
+	db	$a2,$a3,$a3
+	db	$80+3,$a4
+;	db	$a5,$a5,$a5,$a1,$a2,$a3,$a4,$a5
+	db	$80+3,$a5
+
+; changed for 3 sequences of 7
+
+	db	$C0+3,7
+	db	$a1,$a1,$a2,$a3,$a4,$a5,$a5
+;	db	$a5,$a2,$a3,$a4,$a5,$a5,$a0,$a0
+;	db	$a1,$a2,$a3,$a4,$a4,$a4,$a5,$a5
+
+;HAMC
+;	db	$a3,$a3,$a3,$a0,$a0,$a0,$a4
+	db	$80+3,$a3
+	db	$80+3,$a0
+	db	$80+3,$a4
+;	db	$a4,$a4,$a0,$a0,$a0,$a5,$a5,$a5
+	db	$80+3,$a0
+	db	$80+3,$a5
+;	db	$a0,$a0,$a0,$a5,$a5,$a5,$a0,$a0
+	db	$80+3,$a0
+	db	$80+3,$a5
+	db	$80+3,$a0
+;	db	$a0,$a6,$a6,$a6,$a0,$a0,$a8,$a8
+	db	$80+3,$a6
+	db	$80+2,$a0
+	db	$80+3,$a8
+;	db	$a8,$a0,$a0,$a9,$a9,$a0,$a0,$a8
+	db	53
+;	db	$a8,$a0,$a0,$a8,$a8,$a0,$a0,$a7
+;	db	$a7,$a0,$a6,$a6,$a0,$a0,$a6,$a6
+;	db	$a0,$a0,$a5,$a5,$a0,$a0,$a4,$a4
+;	db	$a0,$a3,$a0,$a2,$a0,$a1
+	db	$a0,$a0,$a9,$a9,$a0,$a0,$a8
+	db	$a8,$a0,$a0,$a8,$a8,$a0,$a0,$a7
+	db	$a7,$a0,$a6,$a6,$a0,$a0,$a6,$a6
+	db	$a0,$a0,$a5,$a5,$a0,$a0,$a4,$a4
+	db	$a0,$a3,$a0,$a2,$a0,$a1
+
+;SPRC4
+;	db	$a3,$a4,$a5,$a6,$a5,$a4,$a3,$a4
+;	db	$a5,$a6,$a7,$a6,$a5,$a4,$a3,$a0
+	db	$a3,$a4,$a5,$a6,$a5,$a4,$a3,$a4
+	db	$a5,$a6,$a7,$a6,$a5,$a4,$a3,$a0
+
+;GRLC3
+;GRLC4
+;PNTC4
+;	db	$a7,$a7,$a7,$a7,$a7,$a7
+;	db	$a7,$a7,$a7,$a7,$a7,$a7,$a7,$a7
+;	db	$a7,$a7,$a7,$a7,$a0,$a0,$a0,$a0
+;	db	$a3,$a4,$a5,$a5,$a5,$a5,$a6,$a6
+;	db	$a7,$a7,$a7,$a7,$a7,$a7,$a7,$a7
+;	db	$a7,$a7,$a7,$a7,$a7,$a7,$a7,$a7
+	db	$80+18,$a7
+	db	$80+4,$a0
+	db	2
+	db	$a3,$a4
+	db	$80+4,$a5
+	db	$80+2,$a6
+	db	$80+16,$a7
+
+
+*
+*
+***************************************************
+
+
+;****
+; WALKING.MAC
+;
+
+;
+;	This data came from D:WALKING.SND
+;
+;
+;	This is sound channel 1
+WLKLEN	equ	$000A
+;WLKF1
+;	DB	$23,$24,$25,$26,$28,$2A,$2D,$32,$30,$2E
+	db	10
+	DB	$23,$24,$25,$26,$28,$2A,$2D,$32,$30,$2E
+
+;****
+; JUMP.MAC
+
+;	This data came from D:JUMP.SND
+;
+;	This is sound channel 01
+JMPLEN	EQU 	$0030
+;JMPF1
+;	DB	$3E,$3D,$3B,$39,$37,$36,$37,$39
+
+; last byte of 4th sequence changed
+
+	db	$C0+4,10
+	DB	$3E,$3D,$3B,$39,$37,$36,$37,$39
+;	DB	$3B,$3D,$3E,$3D,$3B,$39,$37,$36
+	DB	$3B,$3D
+;	DB	$37,$39,$3B,$3D,$3E,$3D,$3B,$39
+;	DB	$37,$36,$37,$39,$3B,$3D,$3E,$3D
+;	DB	$3B,$39,$37,$36,$37,$39,$3B,$3C
+;	DB	$3D,$3E,$40,$47,$53,$63,$72,$72
+	db	8
+	DB	$3D,$3E,$40,$47,$53,$63,$72,$72
+
+;****
+; srivet.MAC
+;
+
+;	This data came from D:srivet.SND
+;	This is sound channel 01
+;
+RIVLEN	equ	15
+;RIVF1
+;	DB	0,0,0,0,0,0,0,0,0,0,0,0,68,68,68
+	db	$80+12,0
+	db	$80+3,68
+
+;RIVD1
+;	DB	11,11
+;	DB	11,11,11,11,11,11,11,11,11,28,17,6,5
+	db	$80+11,11
+	db	4
+	db	28,17,6,5
+
+;RIVS1
+;	DB	0,0,0,0,0,0,0,0,0,0,0,0,7,1,1
+	db	$80+12,0
+	db	3
+	db	7,1,1
+
+	
+;RIVF2
+;	DB	217,182,217,182,217,182
+;	DB	217,182,217,182,217,182,91,91,91
+	db	$C0+6,2
+	db	217,182
+	db	$80+3,91
+
+;RIVD2
+;	DB	11,11,11,11
+;	DB	11,11,11,11,11,11,11,11,34,6,5
+	db	$80+12,11
+	db	3
+	db	34,6,5
+
+;RIVS2
+;	DB	5,5,5,5,5,5,5,5,5,5,5,5,7,1,1
+	db	$80+12,5
+	db	3
+	db	7,1,1
+
+;****
+; ROTATE.MAC
+;
+
+;	This data came from D:ROTATE.SND
+;
+;	This is sound channel 01
+ROTLEN	equ	$0090
+;ROTC1
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+	DB	$80+63,$a9
+	DB	$80+63,$a9
+	DB	$80+18,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;	db	$a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+;ROTF1
+;	DB	$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$B6,$B6,$B6,$B6
+	db	$80+24,$88
+	db	$80+19,$b6
+;	DB	$B6,$B6,$B6,$B6,$B6,$B6,$B6,$B6
+;	DB	$B6,$B6,$B6,$B6,$B6,$B6,$B6,$5B
+;	DB	$5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+;	DB	$5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+	db	$80+17,$5b
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$6C,$48
+	db	$80+15,$6c
+	db	$80+2,$48
+;	DB	$48,$80,$80,$80,$44,$44,$79,$79
+	db	$80+3,$80
+	db	$80+2,$44
+	db	$80+3,$79
+;	DB	$79,$40,$40,$72,$72,$72,$3C,$3C
+	db	$80+2,$40
+	db	$80+3,$72
+	db	$80+2,$3c
+;	DB	$6C,$6C,$39,$39,$66,$66,$66,$35
+	db	$80+2,$6c
+	db	$80+2,$39
+	db	$80+3,$66
+	db	$80+2,$35
+;	DB	$35,$5B,$5B,$5B
+	db	$80+3,$5b
+;	DB	$32,$32,$55,$55,$55,$2F,$2F,$51
+	db	$80+2,$32
+	db	$80+3,$55
+	db	$80+2,$2f
+	db	$80+3,$51
+;	DB	$51,$51,$2D,$2D,$4C,$4C,$4C,$2A
+	db	$80+2,$2d
+	db	$80+3,$4c
+	db	$80+2,$2a
+;	DB	$2A,$48,$48,$48,$28,$28,$44,$44
+	db	$80+3,$48
+	db	$80+2,$28
+	db	$80+3,$44
+;	DB	$44,$25,$25,$3F,$3F,$3F,$23,$23
+	db	$80+2,$25
+	db	$80+3,$3f
+	db	$80+2,$23
+;	DB	$3C,$3C,$3C,$2D,$2D,$3C,$3C,$3C
+	db	$80+3,$3c
+	db	$80+2,$2d
+	db	$80+3,$3c
+
+;****
+; MARCHTWO.MAC
+;
+
+;	This data came from D:MARCHTWO.SND
+;
+;
+;	This is sound channel 01
+MR2LEN	equ	$004A
+;MR2F2
+;	DB	$5B,$5B
+;	DB	$5B,$5B,$5B,$5B,$5B,$5B,$5B,$51
+	db	$80+9,$5b
+	db	$80+9,$51
+;	DB	$51,$51,$51,$51,$51,$51,$51,$51
+;	DB	$5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+	db	$80+9,$5b
+;	DB	$5B,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$88,$88
+	db	$80+21,$6c
+	db	$80+26,$88
+
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+
+;****
+; MARCHONE.MAC
+;
+
+;	This data came from D:MARCHONE.SND
+;
+;	This is sound channel 01
+MR1LEN	equ	$001D
+;MR1F2
+;	DB	$6C,$6C,$6C,$6C,$6C
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$6D,$6E
+;	DB	$70,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+	db	$80+11,$6c
+	db	3
+	db	$6d,$6e,$70
+	db	$80+15,$88
+
+;****
+; ATTACK.MAC
+;
+
+;	This data came from D:ATTACK.SND
+;
+;	This is sound channel 01
+ATKLEN	EQU 	$00B6
+;ATKF2
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$5B,$5B
+	db	$80+12,$6c
+	db	$80+12,$5b
+;	DB	$5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+;	DB	$5B,$5B,$6C,$6C,$6C,$6C,$6C,$6C
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$5B,$5B
+;	DB	$5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+;	DB	$5B,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+	db	$80+12,$6c
+	db	$80+11,$5b
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+;	DB	$6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+;	DB	$6C,$6C,$6C,$6C,$6C,$88,$88,$88
+	db	$80+44,$6c
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+	db	$80+12,$88
+	db	$80+12,$6c
+;	DB	$6C,$6C,$6C,$6C,$6C,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+	db	$80+12,$88
+	db	$80+11,$6c
+;	DB	$6C,$6C,$6C,$6C,$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+;	DB	$88,$88,$88,$88,$88,$88,$88,$88
+	db	$80+44,$88
+
+
+
+;****
+; HAMMER.MAC
+;
+
+;	This data came from D:HAMMER.SND
+;
+
+
+CH1OFF	EQU	0		;channel offsets
+CH2OFF	EQU	2
+CH3OFF	EQU	4
+CH4OFF	EQU	6
+;
+HAMLEN	equ	$0045  		;sound table length
+hamle2	=	low [-1]
+hamle3	=	low [-12]
+hamle4	=	low [-17]
+;HAMF
+;	db	$cc,$cc,$cc,$cc,$cc,$cc,$b6,$b6
+	db	$80+6,$cc
+	db	$80+3,$b6
+;	db	$b6,$cc,$cc,$cc,$a2,$a2,$a2,$cc
+	db	$80+3,$cc
+	db	$80+3,$a2
+	db	$80+3,$cc
+;	db	$cc,$cc,$99,$99,$99,$99,$cc,$cc
+	db	$80+4,$99
+	db	$80+2,$cc
+;	db	$88,$88,$88,$cc,$cc,$80,$80,$80
+	db	$80+3,$88
+	db	$80+2,$cc
+	db	$80+3,$80
+;	db	$cc,$cc,$79,$79,$cc,$cc,$72,$72
+;	db	$cc,$cc,$6c,$6c,$cc,$cc,$66,$66
+;	db	$cc,$60,$60,$cc,$cc,$5b,$5b,$5b
+;	db	$51,$55,$55,$51,$51,$51,$51,$51
+	db	27
+	db	$cc,$cc,$79,$79,$cc,$cc,$72,$72
+	db	$cc,$cc,$6c,$6c,$cc,$cc,$66,$66
+	db	$cc,$60,$60,$cc,$cc,$5b,$5b,$5b
+	db	$51,$55,$55
+	db	$80+5,$51
+;	db	$4c,$51,$48,$51,$44
+	db	5
+	db	$4c,$51,$48,$51,$44
+
+;****
+; STAMP.MAC
+;
+
+;	This data came from D:STAMP.SND
+;
+;	This is sound channel 04
+STPLEN	equ	$0018
+
+STPF4	EQU	$66
+
+;****
+; FALL.MAC
+;
+
+;	This data came from D:FALL.SND
+;
+
+;****
+; GRIN.MAC
+;
+
+;	This data came from D:GRIN.SND
+;
+;	This is sound channel 03
+;
+GRNLEN	EQU 	$0011
+;GRNF3
+;	db	$08,$08,$08,$08,$08,$08,$08,$08
+;	db	$08,$08,$08,$08,$08,$08,$08,$08
+;	db	$08
+	db	$80+17,$08
+
+;GRNC3
+;	db	$48,$48,$48,$48,$48,$48,$48,$48
+;	db	$48,$48,$48,$48,$48,$48,$48,$48
+;	db	$48
+	db	$80+17,$48
+
+;****
+; GIRL1.MAC
+;
+
+;	This data came from D:GIRL1.SND
+;
+;	This is sound channel 03
+GRLLEN	equ	4
+;	This is sound channel 04
+
+;GRLF3
+;	DB	45,35,40,45
+
+;GRLF4
+;	DB	52,45,47,53
+;GRLD3
+;GRLD4
+;	DB	16,12,4,5
+;GRLS3
+;GRLS4
+;	DB	10,5,1,2
+	db	31
+	db	45,35,40,45,52,45,47,53
+	db	16,12,4,5,10,5,1,2
+
+;****
+; SPRING.MAC
+;
+
+;	This data came from D:SPRING.SND
+;
+;	This is sound channel 02
+SPRLEN	equ	$000F
+;SPRF4
+;	DB	$16,$1B,$23,$2D,$3B,$4B,$64
+;	DB	$1D,$20,$28,$2F,$39,$48,$56,$6D
+	DB	$16,$1B,$23,$2D,$3B,$4B,$64
+	DB	$1D,$20,$28,$2F,$39,$48,$56,$6D
+
+;****
+; POINTS.MAC
+;
+
+;	This data came from D:POINTS.SND
+;
+;	This is sound channel 01
+PNTLEN	equ	$002D
+;PNTF4
+;	DB	$32,$33,$32,$31,$32
+;	DB	$33,$32,$31,$32,$33,$32,$31,$32
+;	DB	$33,$32,$31,$32,$32,$28,$28,$28
+	db	$C0+4,4
+	DB	$32,$33,$32,$31
+	db	$80+2,$32
+	db	$80+5,$28
+;	DB	$28,$28,$29,$28,$27,$28,$28,$27
+;	DB	$28,$29,$27,$28,$34,$35,$34,$34
+;	DB	$35,$3C,$3D,$3C,$44,$43,$44,$44
+	db	22
+	DB	$29,$28,$27,$28,$28,$27
+	DB	$28,$29,$27,$28,$34,$35,$34,$34
+	DB	$35,$3C,$3D,$3C,$44,$43,$44,$44
+
+
+	db	0		;END UNPACK PROCESS
+
+*******************************************************
+*  pointer table for muspr
+*
+
+howa1
+	dw	howf1
+	dw	howc1
+	dw	howd1
+	dw	hows1
+howa2
+	dw	howf2
+	dw	howc2
+	dw	howd2
+	dw	hows2
+
+
+riva1
+	dw	rivf1
+	dw	rivc1
+	dw	rivd1
+	dw	rivs1
+riva2
+	dw	rivf2
+	dw	rivc2
+	dw	rivd2
+	dw	rivs2
+
+
+grla3
+	dw	grlf3
+	dw	grlc3
+	dw	grld3
+	dw	grls3
+grla4
+	dw	grlf4
+	dw	grlc4
+	dw	grld4
+	dw	grls4
+
+********************************
+* jump table for sounds routine*
+********************************
+
+sjtab
+	db	voice - intro
+	db	voice - intro
+	db	girl1 - intro
+	db	voice - intro
+	db	fall - intro
+	db	voice - intro
+	db	hammer - intro
+	db	voice - intro
+	db	voice - intro
+	db	voice - intro
+	db	voice - intro
+	db	srivet - intro
+	db	voice - intro
+	db	voice - intro
+	db	howmuch - intro
+	db	intro - intro
+
+fh
+	db	high pntf4
+	db	high sprf4
+	db	0		;girl
+	db	high grnf3
+	db	0		;fall
+	db	high stpf3
+	db	high 0		;hammer
+	db	high atkf2
+	db	high mr1f2
+	db	high mr2f2
+	db	high rotf1
+	db	0		;srivet
+	db	high jmpf1
+	db	high wlkf1
+	db	0		;howmuch
+	db	0		;intro
+
+fl
+	db	low pntf4
+	db	low sprf4
+	db	0		;girl
+	db	low grnf3
+	db	0		;fall
+	db	low stpf3
+	db	0		;hammer
+	db	low atkf2
+	db	low mr1f2
+	db	low mr2f2
+	db	low rotf1
+	db	0		;srivet
+	db	low jmpf1
+	db	low wlkf1
+	db	0		;howmuch
+	db	0		;intro
+
+cnh
+	db	high pntc4
+	db	high sprc4
+	db	0		;girl
+	db	high grnc3
+	db	0		;fall
+	db	high stpc3
+	db	0		;hammer
+	db	high atkc2
+	db	high mr1c2
+	db	high mr2c2
+	db	high rotc1
+	db	0		;srivet
+	db	high jmpc1
+	db	high wlkc1
+	db	0		;howmuch
+	db	0		;intro
+
+cnl
+	db	low pntc4
+	db	low sprc4
+	db	0		;girl
+	db	low grnc3
+	db	0		;fall
+	db	low stpc3
+	db	0		;hammer
+	db	low atkc2
+	db	low mr1c2
+	db	low mr2c2
+	db	low rotc1
+	db	0		;srivet
+	db	low jmpc1
+	db	low wlkc1
+	db	0		;howmuch
+	db	0		;intro
+
+chnum				;biases chan #4=6; #3=4; #2=2, #1=0
+	db	6
+	db	6
+	db	0		;girl
+	db	4
+	db	0		;fall
+	db	4
+	db	0		;hammer
+	db	2
+	db	2
+	db	2
+	db	0
+	db	0		;srivet
+	db	0
+	db	0
+	db	0		;howmuch
+	db	0		;intro
+
+	END

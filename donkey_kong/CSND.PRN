@@ -1,0 +1,712 @@
+                  ATARI CAMAC Assembler Ver  1.0A  Page   1
+                                                       D1:UNCOMP.         
+                                                    
+
+                    ;  COMBINED SOUND DATA FILE
+                    
+                    ;****
+                    ; INTRO.MAC
+                    ;
+                    
+        = 00A8      INTC1   EQU     $A8
+        = 00A8      INTC2   EQU     $A8
+        = 0016      falfv   =       $16
+        = 000C      HOWLEN  equ     12
+        = 00A3      falcv   =       $a3
+        = 0007      intle1  =       7
+        = 001B      intle2  =       $1b
+                    
+  0000              INTSDA
+        = 0000      HOWC1   =       INTSDA+$0
+        = 000C      HOWC2   =       INTSDA + $C
+        = 0018      INTF1   =       INTSDA + $18
+        = 001E      INTL1   =       INTSDA + $1E
+        = 0024      INTF2   =       INTSDA + $24
+        = 003E      INTL2   =       INTSDA + $3E
+        = 0058      HOWF1   =       INTSDA + $58
+        = 0064      HOWD1   =       INTSDA + $64
+        = 0070      HOWS1   =       INTSDA + $70
+        = 007C      HOWF2   =       INTSDA + $7C
+        = 0088      HOWD2   =       INTSDA + $88
+        = 0094      HOWS2   =       INTSDA + $94
+                    
+                    ;HOWC1
+                    ;       DB      $C9,$C9,$C9,$C9
+                    ;       DB      $C9,$C9,$C9,$C9,$C8,$C8,$C8,$C8
+  0000  88C9                DB      $80+8,$C9
+  0002  84C8                DB      $80+4,$C8
+                    ;HOWC2
+                    ;       DB      0,0,0,0,0
+                    ;       DB      $AC,$AB,$AB,$AB,$AB,$AB,$AA
+  0004  8500                DB      $80+5,0
+  0006  01AC                DB      1,$AC
+  0008  85AB                DB      $80+5,$AB
+  000A  0DAA                DB      13,$AA                  ;include INTF1 & INTL1
+                    
+                    ;SOUND CHANNEL 1
+                    ;INTF1
+  000C  A2ADF3CCD9          db      $A2,$AD,$F3,$CC,$D9,$F3
+                    
+                    ;INTL1
+  0012  3656302814          db      $36,$56,$30,$28,$14,$3d
+                    
+                    ;SOUND CHANNEL 2
+                    ;INTF2
+                    ;       DB      81,85,81,85,81,85,81
+                    ;       DB      85,81,85,81,85,81,85,81,85,81
+                    ;       DB      85,81,85,81,85,162,136,144,162
+  0018  CB025155            db      $C0+11,2,81,85
+  001C  06                  db      6
+  001D  A28890A2            DB      162,136,144,162
+  0021  3606                DB      54,6
+                  ATARI CAMAC Assembler Ver  1.0A  Page   2
+                                                       D1:UNCOMP.         
+                                                    
+
+                    
+                    ;INTL2
+                    ;       DB      54,6,3,3,3,3,3,3,3,3,3,3,3
+                    ;       DB      3,3,3,3,3,3,3,3,3,48,40,20,61
+  0023  9403                db      $80+20,3
+  0025  11                  db      17
+  0026  3028143D            db      48,40,20,61
+                    ;****
+                    ; HOWMUCH.ASM
+                    ;
+                    
+                    ;       This data came from D:HOWMUCH.SND
+                    
+                    ;       LOW BASS
+                    ;HOWF1
+  002A  6E748392            DB      110,116,131,146
+  002E  A1ADC5DAC5          DB      161,173,197,218,197,146,197,146
+                    
+                    ;HOWD1
+                    ;       DB      8,4,4,4,4,4,5,11,22,20,21,20
+  0036  08                  db      8
+  0037  8504                db      $80+5,4
+  0039  07                  db      7                       ; sraddle
+  003A  050B161415          db      5,11,22,20,21,20
+                    ;HOWS1
+                    ;       DB      3,2,2,2,2,2,3,7,8,8,8,7
+  0040  03                  db      3
+  0041  8502                db      $80+5,2
+  0043  06                  db      6
+  0044  0307080808          db      3,7,8,8,8,7
+                            
+                    ;       This is sound channel 02
+                    ;HOWF2
+                    ;       DB      0,0,0,0,0,67,53,60,53,45,53,60
+  004A  8500                db      $80+5,0
+  004C  07                  db      7
+  004D  43353C352D          db      67,53,60,53,45,60
+                    
+                    ;HOWD2
+                    ;       DB      4,4,4,4,4,25,10,10,10,21,18,13
+  0053  8504                db      $80+5,4
+  0055  07                  db      7
+  0056  190A0A0A15          db      25,10,10,10,21,18,13
+                    ;HOWS2
+                    ;       DB      0,0,0,0,0,12,4,5,5,11,6,7
+  005D  8500                db      $80+5,0
+  005F  07                  db      7
+  0060  0C0405050B          db      12,4,5,5,11,6,7
+                    
+  0067  00                  db      0                       ;end of INTSDAT
+                    
+                    
+                    ***********************************************************************
+                    ***********************************************************************
+  0068  = 0000      SNDDAT  ORG     0
+                    
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page   3
+                                                       D1:UNCOMP.         
+                                                    
+
+  0000              stpf3
+  0000  6666666666          db      $66,$66,$66,$66,$66,$66,$66,$66
+  0008  6666666666          db      $66,$66,$66,$66,$66,$66,$66,$66
+  0010  6666666666          db      $66,$66,$66,$66,$66,$66,$66,$66
+  0018              STPC3
+  0018  8081828384          DB      $80,$81,$82,$83,$84,$85,$86,$87
+  0020  88898A8B8C          DB      $88,$89,$8A,$8B,$8C,$8D,$8E,$8F
+  0028  8F8F8F8F8F          DB      $8F,$8F,$8F,$8F,$8F,$8F,$8F,$8F
+                    
+                    ****************************************************
+                    *
+                    *
+                    
+  0030              WLKC1
+  0030  A2A3A4A5A6          db      $a2,$a3,$a4,$a5,$a6,$a6,$a6,$a5,$a4,$a4
+                    
+  003A              JMPC1
+  003A  A2A3A3A3A3          db      $a2,$a3,$a3,$a3,$a3,$a3,$a4,$a4
+  0042  A4A6A6A6A6          db      $a4,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+  004A  A6A6A6A6A6          db      $a6,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+  0052  A6A6A6A6A6          db      $a6,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+  005A  A6A6A6A6A6          db      $a6,$a6,$a6,$a6,$a6,$a6,$a6,$a6
+  0062  A6A6A6A6A5          db      $a6,$a6,$a6,$a6,$a5,$a5,$a4,$a4
+                    
+                    ;
+  006A              RIVC1
+  006A  0000000000          DB      0,0,0,0,0,0,0,0,0,0,0,0,$A9,$A9,$A9
+  0079              RIVC2
+  0079  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0081  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+                    
+  0089              MR2C2
+  0089  A0A0A1A2A3          db      $a0,$a0,$a1,$a2,$a3,$a4,$a4,$a5,$a5,$a0
+  0093  A0A0A2A3A4          db      $a0,$a0,$a2,$a3,$a4,$a4,$a5,$a5
+  009B  A0A0A0A2A3          db      $a0,$a0,$a0,$a2,$a3,$a4,$a4,$a5
+  00A3  A5A0A0A0A0          db      $a5,$a0,$a0,$a0,$a0,$a0,$a0,$a0
+  00AB  A0A0A0A1A2          db      $a0,$a0,$a0,$a1,$a2,$a3,$a3,$a4
+  00B3  A4A4A5A5A5          db      $a4,$a4,$a5,$a5,$a5,$a5,$a0,$a0
+  00BB  A0A0A0A0A0          db      $a0,$a0,$a0,$a0,$a0,$a0,$a0,$a0
+  00C3  A0A0A0A0A0          db      $a0,$a0,$a0,$a0,$a0,$a0,$a1,$a2
+  00CB  A3A4A4A4A5          db      $a3,$a4,$a4,$a4,$a5,$a5,$a5,$a5
+                    
+  00D3              MR1C2
+  00D3  A0A0A0A0A0          db      $a0,$a0,$a0,$a0,$a0,$a0,$a1,$a2,$a3,$a3,$a3,$a4,$a4,$a4
+  00E1  A0A0A1A1A3          db      $a0,$a0,$a1,$a1,$a3,$a3,$a3,$a3
+  00E9  A0A0A1A2A3          db      $a0,$a0,$a1,$a2,$a3,$a3,$a3,$a0
+                    
+  00F1              ATKC2
+  00F1  A1A2A2A3A3          db      $a1,$a2,$a2,$a3,$a3,$a4
+  00F7  A4A5A5A6A6          db      $a4,$a5,$a5,$a6,$a6,$a6,$a1,$a2
+  00FF  A2A3A3A4A4          db      $a2,$a3,$a3,$a4,$a4,$a5,$a5,$a6
+  0107  A6A6A1A2A2          db      $a6,$a6,$a1,$a2,$a2,$a3,$a3,$a4
+  010F  A4A5A5A6A6          db      $a4,$a5,$a5,$a6,$a6,$a6,$a1,$a2
+  0117  A2A3A3A4A4          db      $a2,$a3,$a3,$a4,$a4,$a5,$a5,$a6
+  011F  A6A0A0A0A1          db      $a6,$a0,$a0,$a0,$a1,$a2,$a3,$a4
+  0127  A4A5A5A5A1          db      $a4,$a5,$a5,$a5,$a1,$a1,$a1,$a2
+  012F  A3A3A4A4A4          db      $a3,$a3,$a4,$a4,$a4,$a5,$a5,$a5
+                  ATARI CAMAC Assembler Ver  1.0A  Page   4
+                                                       D1:UNCOMP.         
+                                                    
+
+  0137  A1A2A3A4A5          db      $a1,$a2,$a3,$a4,$a5,$a5,$a2,$a3
+  013F  A4A5A5A0A0          db      $a4,$a5,$a5,$a0,$a0,$a1,$a2,$a3
+  0147  A4A4A4A5A5          db      $a4,$a4,$a4,$a5,$a5,$a1,$a2,$a2
+  014F  A3A3A4A4A5          db      $a3,$a3,$a4,$a4,$a5,$a5,$a6,$a6
+  0157  A6A1A2A2A3          db      $a6,$a1,$a2,$a2,$a3,$a3,$a4,$a4
+  015F  A5A5A6A6A6          db      $a5,$a5,$a6,$a6,$a6,$a1,$a2,$a2
+  0167  A3A3A4A4A5          db      $a3,$a3,$a4,$a4,$a5,$a5,$a6,$a6
+  016F  A6A1A2A2A3          db      $a6,$a1,$a2,$a2,$a3,$a3,$a4,$a4
+  0177  A5A5A6A6A0          db      $a5,$a5,$a6,$a6,$a0,$a0,$a0,$a1
+  017F  A2A3A4A4A5          db      $a2,$a3,$a4,$a4,$a5,$a5,$a5,$a1
+  0187  A1A1A2A3A3          db      $a1,$a1,$a2,$a3,$a3,$a4,$a4,$a4
+  018F  A5A5A5A1A2          db      $a5,$a5,$a5,$a1,$a2,$a3,$a4,$a5
+  0197  A5A2A3A4A5          db      $a5,$a2,$a3,$a4,$a5,$a5,$a0,$a0
+  019F  A1A2A3A4A4          db      $a1,$a2,$a3,$a4,$a4,$a4,$a5,$a5
+                    
+  01A7              HAMC
+  01A7  A3A3A3A0A0          db      $a3,$a3,$a3,$a0,$a0,$a0,$a4
+  01AE  A4A4A0A0A0          db      $a4,$a4,$a0,$a0,$a0,$a5,$a5,$a5
+  01B6  A0A0A0A5A5          db      $a0,$a0,$a0,$a5,$a5,$a5,$a0,$a0
+  01BE  A0A6A6A6A0          db      $a0,$a6,$a6,$a6,$a0,$a0,$a8,$a8
+  01C6  A8A0A0A9A9          db      $a8,$a0,$a0,$a9,$a9,$a0,$a0,$a8
+  01CE  A8A0A0A8A8          db      $a8,$a0,$a0,$a8,$a8,$a0,$a0,$a7
+  01D6  A7A0A6A6A0          db      $a7,$a0,$a6,$a6,$a0,$a0,$a6,$a6
+  01DE  A0A0A5A5A0          db      $a0,$a0,$a5,$a5,$a0,$a0,$a4,$a4
+  01E6  A0A3A0A2A0          db      $a0,$a3,$a0,$a2,$a0,$a1
+                    
+  01EC              SPRC4
+  01EC  A3A4A5A6A5          db      $a3,$a4,$a5,$a6,$a5,$a4,$a3,$a4
+  01F4  A5A6A7A6A5          db      $a5,$a6,$a7,$a6,$a5,$a4,$a3,$a0
+                    
+  01FC              GRLC3
+  01FC              GRLC4
+  01FC              PNTC4
+  01FC  A7A7A7A7A7          db      $a7,$a7,$a7,$a7,$a7,$a7
+  0202  A7A7A7A7A7          db      $a7,$a7,$a7,$a7,$a7,$a7,$a7,$a7
+  020A  A7A7A7A7A0          db      $a7,$a7,$a7,$a7,$a0,$a0,$a0,$a0
+  0212  A3A4A5A5A5          db      $a3,$a4,$a5,$a5,$a5,$a5,$a6,$a6
+  021A  A7A7A7A7A7          db      $a7,$a7,$a7,$a7,$a7,$a7,$a7,$a7
+  0222  A7A7A7A7A7          db      $a7,$a7,$a7,$a7,$a7,$a7,$a7,$a7
+                    
+                    
+                    *
+                    *
+                    ***************************************************
+                    
+                    
+                    ;****
+                    ; WALKING.MAC
+                    ;
+                    
+                    ;
+                    ;       This data came from D:WALKING.SND
+                    ;
+                    ;
+                    ;       This is sound channel 1
+        = 000A      WLKLEN  equ     $000A
+  022A              WLKF1
+                  ATARI CAMAC Assembler Ver  1.0A  Page   5
+                                                       D1:UNCOMP.         
+                                                    
+
+  022A  2324252628          DB      $23,$24,$25,$26,$28,$2A,$2D,$32,$30,$2E
+                    
+                    ;****
+                    ; JUMP.MAC
+                    
+                    ;       This data came from D:JUMP.SND
+                    ;
+                    ;       This is sound channel 01
+        = 0030      JMPLEN  EQU     $0030
+  0234              JMPF1
+  0234  3E3D3B3937          DB      $3E,$3D,$3B,$39,$37,$36,$37,$39
+  023C  3B3D3E3D3B          DB      $3B,$3D,$3E,$3D,$3B,$39,$37,$36
+  0244  37393B3D3E          DB      $37,$39,$3B,$3D,$3E,$3D,$3B,$39
+  024C  373637393B          DB      $37,$36,$37,$39,$3B,$3D,$3E,$3D
+  0254  3B39373637          DB      $3B,$39,$37,$36,$37,$39,$3B,$3C
+  025C  3D3E404753          DB      $3D,$3E,$40,$47,$53,$63,$72,$72
+                    
+                    ;****
+                    ; srivet.MAC
+                    ;
+                    
+                    ;       This data came from D:srivet.SND
+                    ;       This is sound channel 01
+                    ;
+        = 000F      RIVLEN  equ     15
+  0264              RIVF1
+  0264  0000000000          DB      0,0,0,0,0,0,0,0,0,0,0,0,68,68,68
+  0273              RIVD1
+  0273  0B0B                DB      11,11
+  0275  0B0B0B0B0B          DB      11,11,11,11,11,11,11,11,11,28,17,6,5
+                    
+  0282              RIVS1
+  0282  0000000000          DB      0,0,0,0,0,0,0,0,0,0,0,0,7,1,1
+                            
+                            
+  0291              RIVF2
+  0291  D9B6D9B6D9          DB      217,182,217,182,217,182
+  0297  D9B6D9B6D9          DB      217,182,217,182,217,182,91,91,91
+                    
+  02A0              RIVD2
+  02A0  0B0B0B0B            DB      11,11,11,11
+  02A4  0B0B0B0B0B          DB      11,11,11,11,11,11,11,11,34,6,5
+                    
+  02AF              RIVS2
+  02AF  0505050505          DB      5,5,5,5,5,5,5,5,5,5,5,5,7,1,1
+                    
+                    ;****
+                    ; MARCHTWO.MAC
+                    ;
+                    
+                    ;       This data came from D:MARCHTWO.SND
+                    ;
+                    ;
+                    ;       This is sound channel 01
+        = 004A      MR2LEN  equ     $004A
+  02BE              MR2F2
+  02BE  5B5B                DB      $5B,$5B
+                  ATARI CAMAC Assembler Ver  1.0A  Page   6
+                                                       D1:UNCOMP.         
+                                                    
+
+  02C0  5B5B5B5B5B          DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$51
+  02C8  5151515151          DB      $51,$51,$51,$51,$51,$51,$51,$51
+  02D0  5B5B5B5B5B          DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+  02D8  5B6C6C6C6C          DB      $5B,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  02E0  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  02E8  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$88,$88
+  02F0  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+  02F8  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+  0300  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    
+                    ;****
+                    ; MARCHONE.MAC
+                    ;
+                    
+                    ;       This data came from D:MARCHONE.SND
+                    ;
+                    ;       This is sound channel 01
+        = 001D      MR1LEN  equ     $001D
+  0308              MR1F2
+  0308  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C
+  030D  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$6D,$6E
+  0315  7088888888          DB      $70,$88,$88,$88,$88,$88,$88,$88
+  031D  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    
+                    ;****
+                    ; ATTACK.MAC
+                    ;
+                    
+                    ;       This data came from D:ATTACK.SND
+                    ;
+                    ;       This is sound channel 01
+        = 00B6      ATKLEN  EQU     $00B6
+  0325              ATKF2
+  0325  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C
+  032B  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$5B,$5B
+  0333  5B5B5B5B5B          DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+  033B  5B5B6C6C6C          DB      $5B,$5B,$6C,$6C,$6C,$6C,$6C,$6C
+  0343  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$5B,$5B
+  034B  5B5B5B5B5B          DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+  0353  5B6C6C6C6C          DB      $5B,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  035B  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  0363  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  036B  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  0373  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  037B  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$88,$88,$88
+  0383  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+  038B  886C6C6C6C          DB      $88,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  0393  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$88,$88,$88
+  039B  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+  03A3  886C6C6C6C          DB      $88,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  03AB  6C6C6C6C88          DB      $6C,$6C,$6C,$6C,$88,$88,$88,$88
+  03B3  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+  03BB  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+  03C3  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+  03CB  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+  03D3  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+                    
+                  ATARI CAMAC Assembler Ver  1.0A  Page   7
+                                                       D1:UNCOMP.         
+                                                    
+
+                    
+                    
+                    ;****
+                    ; HAMMER.MAC
+                    ;
+                    
+                    ;       This data came from D:HAMMER.SND
+                    ;
+                    
+                    
+        = 0000      CH1OFF  EQU     0               ;channel offsets
+        = 0002      CH2OFF  EQU     2
+        = 0004      CH3OFF  EQU     4
+        = 0006      CH4OFF  EQU     6
+                    ;
+        = 0045      HAMLEN  equ     $0045           ;sound table length
+        = 00FF      hamle2  =       low [-1]
+        = 00F4      hamle3  =       low [-12]
+        = 00EF      hamle4  =       low [-17]
+  03DB              HAMF
+  03DB  CCCCCCCCCC          db      $cc,$cc,$cc,$cc,$cc,$cc,$b6,$b6
+  03E3  B6CCCCCCA2          db      $b6,$cc,$cc,$cc,$a2,$a2,$a2,$cc
+  03EB  CCCC999999          db      $cc,$cc,$99,$99,$99,$99,$cc,$cc
+  03F3  888888CCCC          db      $88,$88,$88,$cc,$cc,$80,$80,$80
+  03FB  CCCC7979CC          db      $cc,$cc,$79,$79,$cc,$cc,$72,$72
+  0403  CCCC6C6CCC          db      $cc,$cc,$6c,$6c,$cc,$cc,$66,$66
+  040B  CC6060CCCC          db      $cc,$60,$60,$cc,$cc,$5b,$5b,$5b
+  0413  5155555151          db      $51,$55,$55,$51,$51,$51,$51,$51
+  041B  4C51485144          db      $4c,$51,$48,$51,$44
+                    
+                    ;****
+                    ; STAMP.MAC
+                    ;
+                    
+                    ;       This data came from D:STAMP.SND
+                    ;
+                    ;       This is sound channel 04
+        = 0018      STPLEN  equ     $0018
+                    
+        = 0066      STPF4   EQU     $66
+                    
+                    ;****
+                    ; FALL.MAC
+                    ;
+                    
+                    ;       This data came from D:FALL.SND
+                    ;
+                    
+                    ;****
+                    ; GRIN.MAC
+                    ;
+                    
+                    ;       This data came from D:GRIN.SND
+                    ;
+                    ;       This is sound channel 03
+                    ;
+        = 0011      GRNLEN  EQU     $0011
+                  ATARI CAMAC Assembler Ver  1.0A  Page   8
+                                                       D1:UNCOMP.         
+                                                    
+
+  0420              GRNF3
+  0420  0808080808          db      $08,$08,$08,$08,$08,$08,$08,$08
+  0428  0808080808          db      $08,$08,$08,$08,$08,$08,$08,$08
+  0430  08                  db      $08
+  0431              GRNC3
+  0431  4848484848          db      $48,$48,$48,$48,$48,$48,$48,$48
+  0439  4848484848          db      $48,$48,$48,$48,$48,$48,$48,$48
+  0441  48                  db      $48
+                    
+                    ;****
+                    ; GIRL1.MAC
+                    ;
+                    
+                    ;       This data came from D:GIRL1.SND
+                    ;
+                    ;       This is sound channel 03
+        = 0004      GRLLEN  equ     4
+                    ;       This is sound channel 04
+                    
+  0442              GRLF3
+  0442  2D23282D            DB      45,35,40,45
+                    
+  0446              GRLF4
+  0446  342D2F35            DB      52,45,47,53
+  044A              GRLD3
+  044A              GRLD4
+  044A  100C0405            DB      16,12,4,5
+  044E              GRLS3
+  044E              GRLS4
+  044E  0A050102            DB      10,5,1,2
+                    
+                    ;****
+                    ; SPRING.MAC
+                    ;
+                    
+                    ;       This data came from D:SPRING.SND
+                    ;
+                    ;       This is sound channel 02
+        = 000F      SPRLEN  equ     $000F
+  0452              SPRF4
+  0452  161B232D3B          DB      $16,$1B,$23,$2D,$3B,$4B,$64
+  0459  1D20282F39          DB      $1D,$20,$28,$2F,$39,$48,$56,$6D
+                    
+                    ;****
+                    ; POINTS.MAC
+                    ;
+                    
+                    ;       This data came from D:POINTS.SND
+                    ;
+                    ;       This is sound channel 01
+        = 002D      PNTLEN  equ     $002D
+  0461              PNTF4
+  0461  3233323132          DB      $32,$33,$32,$31,$32
+  0466  3332313233          DB      $33,$32,$31,$32,$33,$32,$31,$32
+  046E  3332313232          DB      $33,$32,$31,$32,$32,$28,$28,$28
+  0476  2828292827          DB      $28,$28,$29,$28,$27,$28,$28,$27
+  047E  2829272834          DB      $28,$29,$27,$28,$34,$35,$34,$34
+                  ATARI CAMAC Assembler Ver  1.0A  Page   9
+                                                       D1:UNCOMP.         
+                                                    
+
+  0486  353C3D3C44          DB      $35,$3C,$3D,$3C,$44,$43,$44,$44
+                    
+                    
+  048E  = 0000              org     0
+  0000              rotdat
+                    ;****
+                    ; ROTATE.MAC
+                    ;
+                    
+                    ;       This data came from D:ROTATE.SND
+                    ;
+                    ;       This is sound channel 01
+        = 0090      ROTLEN  equ     $0090
+  0000              ROTC1
+  0000  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0008  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0010  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0018  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0020  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0028  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0030  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0038  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0040  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0048  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0050  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0058  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0060  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0068  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0070  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0078  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0080  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0088  A9A9A9A9A9          db      $a9,$a9,$a9,$a9,$a9,$a9,$a9,$a9
+  0090              ROTF1
+  0090  88888888            DB      $88,$88,$88,$88
+  0094  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+  009C  8888888888          DB      $88,$88,$88,$88,$88,$88,$88,$88
+  00A4  88888888B6          DB      $88,$88,$88,$88,$B6,$B6,$B6,$B6
+  00AC  B6B6B6B6B6          DB      $B6,$B6,$B6,$B6,$B6,$B6,$B6,$B6
+  00B4  B6B6B6B6B6          DB      $B6,$B6,$B6,$B6,$B6,$B6,$B6,$5B
+  00BC  5B5B5B5B5B          DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+  00C4  5B5B5B5B5B          DB      $5B,$5B,$5B,$5B,$5B,$5B,$5B,$5B
+  00CC  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$6C
+  00D4  6C6C6C6C6C          DB      $6C,$6C,$6C,$6C,$6C,$6C,$6C,$48
+  00DC  4880808044          DB      $48,$80,$80,$80,$44,$44,$79,$79
+  00E4  7940407272          DB      $79,$40,$40,$72,$72,$72,$3C,$3C
+  00EC  6C6C393966          DB      $6C,$6C,$39,$39,$66,$66,$66,$35
+  00F4  355B5B5B            DB      $35,$5B,$5B,$5B
+  00F8  3232555555          DB      $32,$32,$55,$55,$55,$2F,$2F,$51
+  0100  51512D2D4C          DB      $51,$51,$2D,$2D,$4C,$4C,$4C,$2A
+  0108  2A48484828          DB      $2A,$48,$48,$48,$28,$28,$44,$44
+  0110  4425253F3F          DB      $44,$25,$25,$3F,$3F,$3F,$23,$23
+  0118  3C3C3C2D2D          DB      $3C,$3C,$3C,$2D,$2D,$3C,$3C,$3C
+                    *******************************************************
+                    *  pointer table for muspr
+                    *
+                    
+  0120              howa1
+                  ATARI CAMAC Assembler Ver  1.0A  Page  10
+                                                       D1:UNCOMP.         
+                                                    
+
+  0120  5800                dw      howf1
+  0122  0000                dw      howc1
+  0124  6400                dw      howd1
+  0126  7000                dw      hows1
+  0128              howa2
+  0128  7C00                dw      howf2
+  012A  0C00                dw      howc2
+  012C  8800                dw      howd2
+  012E  9400                dw      hows2
+                    
+                    
+  0130              riva1
+  0130  6402                dw      rivf1
+  0132  6A00                dw      rivc1
+  0134  7302                dw      rivd1
+  0136  8202                dw      rivs1
+  0138              riva2
+  0138  9102                dw      rivf2
+  013A  7900                dw      rivc2
+  013C  A002                dw      rivd2
+  013E  AF02                dw      rivs2
+                    
+                    
+  0140              grla3
+  0140  4204                dw      grlf3
+  0142  FC01                dw      grlc3
+  0144  4A04                dw      grld3
+  0146  4E04                dw      grls3
+  0148              grla4
+  0148  4604                dw      grlf4
+  014A  FC01                dw      grlc4
+  014C  4A04                dw      grld4
+  014E  4E04                dw      grls4
+                    
+                    ********************************
+                    * jump table for sounds routine*
+                    ********************************
+                    
+  0150              sjtab
+U 0150  00                  db      voice - intro
+U 0151  00                  db      voice - intro
+U 0152  00                  db      girl1 - intro
+U 0153  00                  db      voice - intro
+U 0154  00                  db      fall - intro
+U 0155  00                  db      voice - intro
+U 0156  00                  db      hammer - intro
+U 0157  00                  db      voice - intro
+U 0158  00                  db      voice - intro
+U 0159  00                  db      voice - intro
+U 015A  00                  db      voice - intro
+U 015B  00                  db      srivet - intro
+U 015C  00                  db      voice - intro
+U 015D  00                  db      voice - intro
+U 015E  00                  db      howmuch - intro
+U 015F  00                  db      intro - intro
+                    
+  0160              fh
+ *Error page  10  ATARI CAMAC Assembler Ver  1.0A  Page  11
+                                                       D1:UNCOMP.         
+                                                    
+
+  0160  04                  db      high pntf4
+  0161  04                  db      high sprf4
+  0162  00                  db      0               ;girl
+  0163  04                  db      high grnf3
+  0164  00                  db      0               ;fall
+  0165  00                  db      high stpf3
+  0166  00                  db      high 0          ;hammer
+  0167  03                  db      high atkf2
+  0168  03                  db      high mr1f2
+  0169  02                  db      high mr2f2
+  016A  00                  db      high rotf1
+  016B  00                  db      0               ;srivet
+  016C  02                  db      high jmpf1
+  016D  02                  db      high wlkf1
+  016E  00                  db      0               ;howmuch
+  016F  00                  db      0               ;intro
+                    
+  0170              fl
+  0170  61                  db      low pntf4
+  0171  52                  db      low sprf4
+  0172  00                  db      0               ;girl
+  0173  20                  db      low grnf3
+  0174  00                  db      0               ;fall
+  0175  00                  db      low stpf3
+  0176  00                  db      0               ;hammer
+  0177  25                  db      low atkf2
+  0178  08                  db      low mr1f2
+  0179  BE                  db      low mr2f2
+  017A  90                  db      low rotf1
+  017B  00                  db      0               ;srivet
+  017C  34                  db      low jmpf1
+  017D  2A                  db      low wlkf1
+  017E  00                  db      0               ;howmuch
+  017F  00                  db      0               ;intro
+                    
+  0180              cnh
+  0180  01                  db      high pntc4
+  0181  01                  db      high sprc4
+  0182  00                  db      0               ;girl
+  0183  04                  db      high grnc3
+  0184  00                  db      0               ;fall
+  0185  00                  db      high stpc3
+  0186  00                  db      0               ;hammer
+  0187  00                  db      high atkc2
+  0188  00                  db      high mr1c2
+  0189  00                  db      high mr2c2
+  018A  00                  db      high rotc1
+  018B  00                  db      0               ;srivet
+  018C  00                  db      high jmpc1
+  018D  00                  db      high wlkc1
+  018E  00                  db      0               ;howmuch
+  018F  00                  db      0               ;intro
+                    
+  0190              cnl
+  0190  FC                  db      low pntc4
+  0191  EC                  db      low sprc4
+  0192  00                  db      0               ;girl
+                  ATARI CAMAC Assembler Ver  1.0A  Page  12
+                                                       D1:UNCOMP.         
+                                                    
+
+  0193  31                  db      low grnc3
+  0194  00                  db      0               ;fall
+  0195  18                  db      low stpc3
+  0196  00                  db      0               ;hammer
+  0197  F1                  db      low atkc2
+  0198  D3                  db      low mr1c2
+  0199  89                  db      low mr2c2
+  019A  00                  db      low rotc1
+  019B  00                  db      0               ;srivet
+  019C  3A                  db      low jmpc1
+  019D  30                  db      low wlkc1
+  019E  00                  db      0               ;howmuch
+  019F  00                  db      0               ;intro
+                    
+  01A0              chnum                           ;biases chan #4=6; #3=4; #2=2, #1=0
+  01A0  06                  db      6
+  01A1  06                  db      6
+  01A2  00                  db      0               ;girl
+  01A3  04                  db      4
+  01A4  00                  db      0               ;fall
+  01A5  04                  db      4
+  01A6  00                  db      0               ;hammer
+  01A7  02                  db      2
+  01A8  02                  db      2
+  01A9  02                  db      2
+  01AA  00                  db      0
+  01AB  00                  db      0               ;srivet
+  01AC  00                  db      0
+  01AD  00                  db      0
+  01AE  00                  db      0               ;howmuch
+  01AF  00                  db      0               ;intro
+                    
+  01B0                      END
+
+
+  16 ERRORs,  100 Labels, $8C73 free.
+ Last error occurred on Page  10

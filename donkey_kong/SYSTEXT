@@ -1,0 +1,259 @@
+;
+; Systext file for Donkey-Kong.
+; (This has been slightly modified from the original systext
+;  file...)
+;
+;
+SETVBV = $E45C
+xitvbl	equ	$e462			; *** synonym ***
+XITVBV = $E462
+pokmsk	=	$10
+RTCLOK = $12
+jiffy  = rtclok+2	;generic for 'jiffy' byte
+ATRACT = $4D
+DRKMSK = $4E
+COLRSH = $4F
+
+VDSLST = $200
+VPRCED = $202
+VINTER = $204
+VBREAK = $206
+VKEYBD = $208
+VSERIN = $20A
+VSEROR = $20C
+VSEROC = $20E
+VTIMR1 = $210
+VTIMR2 = $212
+VTIMR4 = $214
+VIMIRQ = $216
+CDTMV1 = $218
+CDTMV2 = $21A
+CDTMV3 = $21C
+CDTMV4 = $21E
+CDTMV5 = $220
+VVBLKI = $222
+VVBLKD = $224
+CDTMA1 = $226
+CDTMA2 = $228
+CDTMF3 = $22A
+SRTIMR = $22B
+CDTMF4 = $22C
+INTEMP = $22D
+CDTMF5 = $22E
+SDMCTL = $22F
+SDLSTL = $230
+SDLSTH = $231
+SSKCTL = $232
+LPENH  = $234
+LPENV  = $235
+BRKKY  = $236
+CDEVIC = $23A
+CCOMND = $23B
+CAUX1  = $23C
+CAUX2  = $23D
+ERRFLG = $23F
+DFLAGS = $240
+DBSECT = $241
+BOOTAD = $242
+COLDST = $244
+DSKTIM = $246
+LINBUF = $247
+GPRIOR = $26F
+PADDL0 = $270
+PADDL1 = $271
+PADDL2 = $272
+PADDL3 = $273
+PADDL4 = $274
+PADDL5 = $275
+PADDL6 = $276
+PADDL7 = $277
+STICK0 = $278
+STICK1 = $279
+STICK2 = $27A
+STICK3 = $27B
+PTRIG0 = $27C
+PTRIG1 = $27D
+PTRIG2 = $27E
+PTRIG3 = $27F
+PTRIG4 = $280
+PTRIG5 = $281
+PTRIG6 = $282
+PTRIG7 = $283
+STRIG0 = $284
+STRIG1 = $285
+STRIG2 = $286
+STRIG3 = $287
+
+PCOLR0 = $2C0
+PCOLR1 = $2C1
+PCOLR2 = $2C2
+PCOLR3 = $2C3
+COLOR0 = $2C4
+COLOR1 = $2C5
+COLOR2 = $2C6
+COLOR3 = $2C7
+COLOR4 = $2C8
+
+;       COLLEEN MNEMONICS FOR HARDWARE REGISTERS
+;CTIA HARDWARE REGISTERS
+;
+GTIA   = $D000
+HPOSP0 = $D000
+HPOSP1 = $D001
+HPOSP2 = $D002
+HPOSP3 = $D003
+HPOSM0 = $D004
+HPOSM1 = $D005
+HPOSM2 = $D006
+HPOSM3 = $D007
+SIZEP0 = $D008
+SIZEP1 = $D009
+SIZEP2 = $D0A
+SIZEP3 = $D00B
+SIZEM  = $D00C
+GRAFP0 = $D00D
+GRAFP1 = $D00E
+GRAFP2 = $D00F
+GRAFP3 = $D010
+GRAFM  = $D011
+COLPM0 = $D012
+COLPM1 = $D013
+COLPM2 = $D014
+COLPM3 = $D015
+COLPF0 = $D016
+COLPF1 = $D017
+COLPF2 = $D018
+COLPF3 = $D019
+COLBK  = $D01A
+PRIOR  = $D01B
+VDELAY = $D01C
+GRACTL = $D01D
+HITCLR = $D01E
+CONSOL = $D01F
+M0PF   = $D000
+M1PF   = $D001
+M2PF   = $D002
+M3PF   = $D003
+P0PF   = $D004
+P1PF   = $D005
+P2PF   = $D006
+P3PF   = $D007
+M0PL   = $D008
+M1PL   = $D009
+M2PL   = $D00A
+M3PL   = $D00B
+P0PL   = $D00C
+P1PL   = $D00D
+P2PL   = $D00E
+P3PL   = $D00F
+TRIG0  = $D010
+TRIG1  = $D011
+TRIG2  = $D012
+TRIG3  = $D013
+PAL    = $D014
+POKEY  = $D200
+POT0   = $D200
+POT1   = $D201
+POT2   = $D202
+POT3   = $D203
+POT4   = $D204
+POT5   = $D205
+POT6   = $D206
+POT7   = $D207
+ALLPOT = $D208
+KBCODE = $D209
+RANDOM = $D20A
+POTGO  = $D20B
+SERIN  = $D20D
+IRQST  = $D20E
+SKSTAT = $D20F
+AUDF1  = $D200
+AUDC1  = $D201
+AUDF2  = $D202
+AUDC2  = $D203
+AUDF3  = $D204
+AUDC3  = $D205
+AUDF4  = $D206
+AUDC4  = $D207
+AUDCTL = $D208
+STIMER = $D209
+SKRES  = $D20A
+SEROUT = $D20D
+IRQEN  = $D20E
+SKCTL  = $D20F
+PIA    = $D300
+PORTA  = $D300
+PORTB  = $D301
+PACTL  = $D302
+PBCTL  = $D303
+ANTIC  = $D400
+DMACTL = $D400
+CHACTL = $D401
+DLISTL = $D402
+DLISTH = $D403
+HSCROL = $D404
+VSCROL = $D405
+PMBASE = $D407
+CHBASE = $D409
+WSYNC  = $D40A
+VCOUNT = $D40B
+PENH   = $D40C
+PENV   = $D40D
+NMIEN  = $D40E
+NMIRES = $D40F
+NMIST  = $D40F
+;
+; extra 'unofficial' =ates
+;
+; these are mainly for Antic
+dlbl1	=	$00	;one blank line
+dlbl2	=	$10	;two blank lines
+dlbl3	=	$20
+dlbl4	=	$30
+dlbl5	=	$40
+dlbl6	=	$50
+dlbl7	=	$60
+dlbl8	=	$70	; seven blank lines
+
+dlint	=	$80	;DLI bit
+dljmp	=	$01	;DL jump
+dljvb	=	$41	;DL jump-and-wait for vbl
+dlldm	=	$40	;Reload scan-counter bit
+dlvscr	=	$20	;Vertical scroll enable bit
+dlhscr	=	$10	;Horizontal scroll enable bit
+
+;
+; colors
+; (some of these are really matters of opinion, and have nothing
+;  to do with reality on the TV screen.)
+clgrey	=	$00	;Grey
+clgold	=	$10	;"Gold" (really?)
+clorng	=	$20	;Orange
+clred	=	$30	;Red
+clpink	=	$40	;Pink
+clpurp	=	$50	;Purple
+clpurb	=	$60	;Purple-blue
+clpblu	=	$70	;Blue #1
+clblue	=	$80	;Blue #2 (official blue?)
+cllblu	=	$90	;Light-blue
+clturq	=	$a0	;Turqoise
+clgblu	=	$b0	;Green-blue
+clgren	=	$c0	;Green
+clygrn	=	$d0	;Yellow-green
+clogrn	=	$e0	;Orange-green
+clltor	=	$f0	;Light-orange
+
+;
+; bit masks for console switches
+swstrt	=	$01	;START
+swsel	=	$02	;SELECT
+swopt	=	$04	;OPTION
+
+;
+; Bit masks for joystick values
+jyrt	=	$08	;Right
+jylf	=	$04	;Left
+jydn	=	$02	;Down
+jyup	=	$01	;Up
+
+; -- end of systext file --

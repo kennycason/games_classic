@@ -1,0 +1,6 @@
+;
+; Wind up the assembly with some important stuff:
+;
+	eproc			; terminate last LOCAL env
+	assert	* < $c000	; did we overflow cart space?
+	end	main
